@@ -789,7 +789,7 @@ input, select, textarea {
   transform: scale(1.08);
 }
 
-/* Card Actions (Edit/Delete) */
+/* Card Actions (Like/Edit/Delete) */
 .card-actions {
   position: absolute;
   top: 6px;
@@ -797,15 +797,8 @@ input, select, textarea {
   display: flex;
   flex-direction: row;
   gap: 6px;
-  opacity: 0;
-  transform: translateY(-8px);
-  transition: all var(--transition-base);
-  z-index: 10;
-}
-
-.sound-card:hover .card-actions {
   opacity: 1;
-  transform: translateY(0);
+  z-index: 10;
 }
 
 .card-actions button {
