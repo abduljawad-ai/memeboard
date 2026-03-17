@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MemeBoard — Ultimate Meme Soundboard</title>
+  <meta name="description" content="The ultimate meme soundboard. Play, upload, and share viral meme sounds instantly.">
+  <meta name="theme-color" content="#0a0a1a">
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+  <!-- Ambient Background Orbs -->
+  <div class="ambient-bg" aria-hidden="true">
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+  </div>
+
+  <!-- Login Page Overlay -->
+  <div class="login-page" id="loginPage">
+    <div class="login-container">
+      <div class="login-header">
+        <div class="logo-icon large">
+          <i class="fa-solid fa-volume-high"></i>
+        </div>
+        <h2>Welcome to MemeBoard</h2>
+        <p>Please sign in to drop the sound!</p>
+      </div>
+
+      <div class="login-body">
+        <button class="btn btn-login-google" id="loginGoogleBtn">
+          <i class="fa-brands fa-google"></i> Continue with Google
+        </button>
+
+        <div class="login-divider">
+          <span>OR</span>
+        </div>
+
+        <form id="loginForm" class="login-form">
+          <div class="form-group">
+            <label for="loginEmail">Email Address</label>
+            <div class="input-with-icon">
+              <i class="fa-solid fa-envelope"></i>
+              <input type="email" id="loginEmail" placeholder="you@example.com" required>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="loginPassword">Password</label>
+            <div class="input-with-icon">
+              <i class="fa-solid fa-lock"></i>
+              <input type="password" id="loginPassword" placeholder="••••••••" required>
+            </div>
+          </div>
+          
+          <div class="login-actions">
+            <button type="submit" class="btn btn-submit" id="loginEmailBtn">Sign In</button>
+            <button type="button" class="btn btn-secondary" id="signupEmailBtn">Create Account</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Header -->
+  <header class="header" id="header">
+    <div class="header-content">
+      <div class="logo">
+        <div class="logo-icon">
+          <i class="fa-solid fa-volume-high"></i>
+        </div>
+        <div class="logo-text">
+          <h1>MemeBoard</h1>
+          <p>DROP THE SOUND</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <!-- User Profile Area -->
+        <div class="user-profile" id="userProfile" style="display: none;">
+          <img src="" alt="Avatar" id="userAvatar" class="user-avatar" title="Logged In">
+          <button class="btn btn-logout" id="logoutBtn" title="Sign Out">
+            <i class="fa-solid fa-arrow-right-from-bracket"></i>
+          </button>
+        </div>
+        <button class="btn btn-login" id="loginBtn" title="Sign in with Google">
+          <i class="fa-brands fa-google"></i> Login
+        </button>
+
+        <button class="btn btn-stop" id="stopAll" title="Stop all playing sounds">
+          <i class="fa-solid fa-stop"></i>
+          <span>Stop All</span>
+        </button>
+        <!-- The upload button will only be fully visible/enabled when logged in, we handle this in JS -->
+        <button class="btn btn-upload" id="openUpload" title="Upload a new sound">
+          <i class="fa-solid fa-cloud-arrow-up"></i>
+          <span>Upload</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Stats Bar -->
+  <div class="stats-bar">
+    <div class="stats-content">
+      <span class="sound-count" id="soundCount">
+        <i class="fa-solid fa-music"></i> Loading sounds...
+      </span>
+      <span class="live-badge">
+        <span class="live-dot"></span> Live Sync
+      </span>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <main class="main-content">
+    <!-- Loading State -->
+    <div class="loading-state" id="loadingState">
+      <div class="spinner"></div>
+      <p>Loading sounds...</p>
+    </div>
+
+    <!-- Empty State -->
+    <div class="empty-state" id="emptyState" style="display:none;">
+      <div class="empty-icon">
+        <i class="fa-solid fa-compact-disc"></i>
+      </div>
+      <h3>No Sounds Yet</h3>
+      <p>Be the first to upload a meme sound!</p>
+      <button class="btn btn-upload" id="emptyUploadBtn">
+        <i class="fa-solid fa-cloud-arrow-up"></i> Upload Sound
+      </button>
+    </div>
+
+    <!-- Sound Grid -->
+    <div class="sound-grid" id="soundGrid" style="display:none;"></div>
+  </main>
+
+  <!-- Upload Modal -->
+  <div class="modal-overlay" id="uploadModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="modalTitle">
+          <i class="fa-solid fa-cloud-arrow-up"></i> Upload Sound
+        </h2>
+        <button class="modal-close" id="closeModal" aria-label="Close modal">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Sound Name -->
+        <div class="form-group">
+          <label for="soundName">Sound Name</label>
+          <input type="text" id="soundName" placeholder="e.g., Vine Boom, Bruh, OOF..." maxlength="50" autocomplete="off">
+          <div class="input-meta">
+            <span class="char-count"><span id="charCount">0</span> / 50</span>
+          </div>
+        </div>
+
+        <!-- Thumbnail Image (Optional) -->
+        <div class="form-group">
+          <label>Thumbnail Image (Optional)</label>
+          <div class="drop-zone file-drop-zone" id="thumbDropZone" tabindex="0" role="button" aria-label="Click or drag image to upload thumbnail">
+            <div class="drop-zone-content">
+              <i class="fa-solid fa-image"></i>
+              <p>Drag & drop or <strong>click</strong> for thumbnail</p>
+              <span class="drop-zone-hint">.jpg, .png — Max 300 KB</span>
+            </div>
+          </div>
+          <input type="file" id="thumbInput" accept="image/jpeg,image/png,image/gif" hidden>
+
+          <!-- Selected Thumbnail Info -->
+          <div class="file-info" id="thumbInfo" style="display:none;">
+            <div class="file-info-left">
+              <img src="" id="thumbPreview" class="thumb-preview" alt="Preview">
+              <div class="file-details">
+                <span class="file-name" id="thumbName"></span>
+                <span class="file-size" id="thumbSize"></span>
+              </div>
+            </div>
+            <button class="btn-remove-file" id="removeThumb" aria-label="Remove thumbnail">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- File Upload -->
+        <div class="form-group">
+          <label>Audio File <span class="required">*</span></label>
+          <div class="drop-zone file-drop-zone" id="dropZone" tabindex="0" role="button" aria-label="Click or drag audio file to upload">
+            <div class="drop-zone-content">
+              <i class="fa-solid fa-cloud-arrow-up"></i>
+              <p>Drag & drop or <strong>click</strong> to browse audio</p>
+              <span class="drop-zone-hint">.mp3, .wav, .ogg — Max 700 KB</span>
+            </div>
+          </div>
+          <input type="file" id="audioInput" accept=".mp3,.wav,.ogg,audio/mpeg,audio/wav,audio/ogg" hidden>
+
+          <!-- Selected File Info -->
+          <div class="file-info" id="fileInfo" style="display:none;">
+            <div class="file-info-left">
+              <i class="fa-solid fa-file-audio"></i>
+              <div class="file-details">
+                <span class="file-name" id="fileName"></span>
+                <span class="file-size" id="fileSize"></span>
+              </div>
+            </div>
+            <button class="btn-remove-file" id="removeFile" aria-label="Remove file">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Upload Progress -->
+        <div class="progress-container" id="progressContainer" style="display:none;">
+          <div class="progress-header">
+            <span>Uploading...</span>
+            <span id="progressText">0%</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-bar" id="progressBar"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-cancel" id="cancelUpload">Cancel</button>
+        <button class="btn btn-submit" id="submitUpload">
+          <span class="btn-text">Upload Sound</span>
+          <div class="btn-spinner"></div>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Modal -->
+  <div class="modal-overlay" id="editModal" role="dialog" aria-modal="true" aria-labelledby="editModalTitle">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="editModalTitle">
+          <i class="fa-solid fa-pencil"></i> Edit Sound
+        </h2>
+        <button class="modal-close" id="closeEditModal" aria-label="Close modal">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <input type="hidden" id="editSoundId">
+        
+        <!-- Sound Name -->
+        <div class="form-group">
+          <label for="editSoundName">Sound Name</label>
+          <input type="text" id="editSoundName" placeholder="e.g., Vine Boom, Bruh, OOF..." maxlength="50" autocomplete="off">
+          <div class="input-meta">
+            <span class="char-count"><span id="editCharCount">0</span> / 50</span>
+          </div>
+        </div>
+
+        <!-- Thumbnail Image (Optional) -->
+        <div class="form-group">
+          <label>Replace Thumbnail (Optional)</label>
+          <div class="drop-zone file-drop-zone" id="editThumbDropZone" tabindex="0" role="button" aria-label="Click or drag image to upload thumbnail">
+            <div class="drop-zone-content">
+              <i class="fa-solid fa-image"></i>
+              <p>Drag & drop or <strong>click</strong> for thumbnail</p>
+              <span class="drop-zone-hint">.jpg, .png — Max 300 KB</span>
+            </div>
+          </div>
+          <input type="file" id="editThumbInput" accept="image/jpeg,image/png,image/gif" hidden>
+
+          <!-- Selected Thumbnail Info -->
+          <div class="file-info" id="editThumbInfo" style="display:none;">
+            <div class="file-info-left">
+              <img src="" id="editThumbPreview" class="thumb-preview" alt="Preview">
+              <div class="file-details">
+                <span class="file-name" id="editThumbName"></span>
+                <span class="file-size" id="editThumbSize"></span>
+              </div>
+            </div>
+            <button class="btn-remove-file" id="removeEditThumb" aria-label="Remove thumbnail">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Update Progress -->
+        <div class="progress-container" id="editProgressContainer" style="display:none;">
+          <div class="progress-header">
+            <span>Updating...</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-bar" id="editProgressBar" style="width: 100%"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-cancel" id="cancelEdit">Cancel</button>
+        <button class="btn btn-submit" id="submitEdit">
+          <span class="btn-text">Save Changes</span>
+          <div class="btn-spinner"></div>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Setup Notice (shown when Firebase not configured) -->
+  <div class="setup-notice" id="setupNotice" style="display:none;">
+    <div class="setup-card">
+      <i class="fa-solid fa-triangle-exclamation"></i>
+      <h3>Firebase Setup Required</h3>
+      <p>Open <code>js/app.js</code> and replace the placeholder <code>firebaseConfig</code> object with your Firebase project credentials.</p>
+      <a href="https://console.firebase.google.com/" target="_blank" rel="noopener" class="btn btn-upload">
+        <i class="fa-solid fa-arrow-up-right-from-square"></i> Open Firebase Console
+      </a>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="site-footer" id="siteFooter">
+    <p>Made with <span class="heart">❤️</span> by <strong>Jawad Gopang</strong></p>
+  </footer>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toastContainer" aria-live="polite"></div>
+
+  <!-- App Script -->
+  <script type="module" src="js/app.js"></script>
+
+  <!-- Force Cache Clear / Service Worker Unregister -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(registrations) {
+        for(let registration of registrations) {
+          registration.unregister();
+          console.log("Service Worker unregistered to clear cache.");
+        }
+      });
+    }
+  </script>
+</body>
+</html>
