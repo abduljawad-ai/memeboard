@@ -65,6 +65,17 @@
         </div>
       </div>
       <div class="header-actions">
+        <!-- Upload button (shown first) -->
+        <button class="btn btn-upload" id="openUpload" title="Upload a new sound">
+          <i class="fa-solid fa-cloud-arrow-up"></i>
+          <span>Upload</span>
+        </button>
+
+        <button class="btn btn-stop" id="stopAll" title="Stop all playing sounds">
+          <i class="fa-solid fa-stop"></i>
+          <span>Stop All</span>
+        </button>
+
         <!-- User Profile Area -->
         <div class="user-profile" id="userProfile" style="display: none;">
           <div id="userAvatar" class="user-avatar"></div>
@@ -75,16 +86,6 @@
         </div>
         <button class="btn btn-login" id="loginBtn" title="Sign in with Google">
           <i class="fa-brands fa-google"></i> Login
-        </button>
-
-        <button class="btn btn-stop" id="stopAll" title="Stop all playing sounds">
-          <i class="fa-solid fa-stop"></i>
-          <span>Stop All</span>
-        </button>
-        <!-- The upload button will only be fully visible/enabled when logged in, we handle this in JS -->
-        <button class="btn btn-upload" id="openUpload" title="Upload a new sound">
-          <i class="fa-solid fa-cloud-arrow-up"></i>
-          <span>Upload</span>
         </button>
       </div>
     </div>
