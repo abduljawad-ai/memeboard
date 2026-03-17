@@ -1186,6 +1186,145 @@ input, select, textarea {
   color: var(--error);
 }
 
+/* ---- Waveform Editor ---- */
+.waveform-container {
+  position: relative;
+  width: 100%;
+  height: 120px;
+  background: rgba(10, 10, 26, 0.6);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--glass-border);
+  overflow: hidden;
+  cursor: crosshair;
+}
+
+.waveform-container canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.trim-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.trim-region {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(168, 85, 247, 0.15);
+  border-left: 2px solid var(--accent-purple);
+  border-right: 2px solid var(--accent-purple);
+  pointer-events: none;
+}
+
+.trim-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 20px;
+  cursor: ew-resize;
+  pointer-events: all;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.trim-handle-left {
+  left: -10px;
+}
+
+.trim-handle-right {
+  right: -10px;
+}
+
+.trim-handle-grip {
+  width: 6px;
+  height: 40px;
+  border-radius: 3px;
+  background: var(--accent-purple);
+  box-shadow: 0 0 10px rgba(168, 85, 247, 0.6), 0 0 20px rgba(168, 85, 247, 0.3);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.trim-handle:hover .trim-handle-grip,
+.trim-handle:active .trim-handle-grip {
+  transform: scaleY(1.2);
+  box-shadow: 0 0 15px rgba(168, 85, 247, 0.8), 0 0 30px rgba(168, 85, 247, 0.4);
+}
+
+.playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #22c55e;
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.6);
+  z-index: 5;
+  display: none;
+  pointer-events: none;
+}
+
+.waveform-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 0.75rem;
+  gap: 1rem;
+}
+
+.btn-preview {
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, var(--accent-purple), var(--accent-pink));
+  color: white;
+  font-weight: 600;
+  font-size: 0.8rem;
+  border: none;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+.btn-preview:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 15px rgba(168, 85, 247, 0.4);
+}
+
+.trim-info {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.trim-dash {
+  color: var(--text-muted);
+}
+
+.trim-duration {
+  color: var(--accent-purple);
+}
+
+.waveform-hint {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-top: 0.5rem;
+}
+
+.waveform-hint i {
+  color: var(--accent-blue);
+}
+
 /* ---- Progress Bar ---- */
 .progress-container {
   animation: fadeIn 0.3s ease-out;

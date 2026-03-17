@@ -175,17 +175,17 @@
           </div>
         </div>
 
-        <!-- File Upload -->
+        <!-- File Upload (Audio or Video) -->
         <div class="form-group">
-          <label>Audio File <span class="required">*</span></label>
-          <div class="drop-zone file-drop-zone" id="dropZone" tabindex="0" role="button" aria-label="Click or drag audio file to upload">
+          <label>Audio / Video File <span class="required">*</span></label>
+          <div class="drop-zone file-drop-zone" id="dropZone" tabindex="0" role="button" aria-label="Click or drag audio or video file to upload">
             <div class="drop-zone-content">
               <i class="fa-solid fa-cloud-arrow-up"></i>
-              <p>Drag & drop or <strong>click</strong> to browse audio</p>
-              <span class="drop-zone-hint">.mp3, .wav, .ogg — Max 700 KB</span>
+              <p>Drag & drop or <strong>click</strong> to browse</p>
+              <span class="drop-zone-hint">.mp3, .wav, .ogg, .mp4, .webm, .mov — Max 50 MB</span>
             </div>
           </div>
-          <input type="file" id="audioInput" accept=".mp3,.wav,.ogg,audio/mpeg,audio/wav,audio/ogg" hidden>
+          <input type="file" id="audioInput" accept=".mp3,.wav,.ogg,.mp4,.webm,.mov,audio/*,video/*" hidden>
 
           <!-- Selected File Info -->
           <div class="file-info" id="fileInfo" style="display:none;">
@@ -199,6 +199,39 @@
             <button class="btn-remove-file" id="removeFile" aria-label="Remove file">
               <i class="fa-solid fa-xmark"></i>
             </button>
+          </div>
+        </div>
+
+        <!-- Waveform Editor (appears after file is selected) -->
+        <div class="form-group" id="waveformEditor" style="display:none;">
+          <label><i class="fa-solid fa-wave-square"></i> Trim Audio</label>
+          <div class="waveform-container">
+            <canvas id="waveformCanvas"></canvas>
+            <div class="trim-overlay" id="trimOverlay">
+              <div class="trim-region" id="trimRegion">
+                <div class="trim-handle trim-handle-left" id="trimHandleLeft">
+                  <div class="trim-handle-grip"></div>
+                </div>
+                <div class="trim-handle trim-handle-right" id="trimHandleRight">
+                  <div class="trim-handle-grip"></div>
+                </div>
+              </div>
+            </div>
+            <div class="playhead" id="playhead"></div>
+          </div>
+          <div class="waveform-controls">
+            <button type="button" class="btn btn-preview" id="playSelection">
+              <i class="fa-solid fa-play" id="previewIcon"></i> Preview
+            </button>
+            <div class="trim-info">
+              <span id="trimStartTime">0.0s</span>
+              <span class="trim-dash">—</span>
+              <span id="trimEndTime">0.0s</span>
+              <span class="trim-duration">(<span id="trimDuration">0.0</span>s)</span>
+            </div>
+          </div>
+          <div class="waveform-hint">
+            <i class="fa-solid fa-info-circle"></i> Drag the handles to select the portion you want to keep
           </div>
         </div>
 
