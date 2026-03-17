@@ -45,8 +45,17 @@ service cloud.firestore {
                     && request.resource.data.name is string
                     && request.resource.data.name.size() <= 50;
 
-      // Must be logged in AND (be the creator OR the specific Admin UID)
-      allow update, delete: if request.auth != null && (
+      // Any authenticated user can update likes
+      // Owner or admin can update/delete anything
+      allow update: if request.auth != null && (
+          // Anyone logged in can toggle likes
+          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes'])) ||
+          // Owner or admin can edit all fields
+          request.auth.uid == resource.data.userId || 
+          request.auth.uid == 'Db3uryElkEdX90GlEHsyhOMugD43'
+        );
+      
+      allow delete: if request.auth != null && (
           request.auth.uid == resource.data.userId || 
           request.auth.uid == 'Db3uryElkEdX90GlEHsyhOMugD43'
         );

@@ -10,7 +10,7 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import {
   getFirestore, collection, addDoc, onSnapshot, doc, deleteDoc, updateDoc,
-  query, orderBy, serverTimestamp, getDoc
+  query, orderBy, serverTimestamp, getDoc, arrayUnion, arrayRemove
 } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
 // ============================================
@@ -798,9 +798,23 @@ function renderSounds() {
   if (emptyState) emptyState.style.display = 'none';
   grid.style.display = 'grid';
   grid.innerHTML = '';
-  state.sounds.forEach(sound => {
+
+  // Sort by likes (most liked first), then by date
+  const sorted = [...state.sounds].sort((a, b) => {
+    const aLikes = (a.likes || []).length;
+    const bLikes = (b.likes || []).length;
+    if (bLikes !== aLikes) return bLikes - aLikes;
+    // Secondary sort: newest first
+    const aTime = a.createdAt ? a.createdAt.seconds : 0;
+    const bTime = b.createdAt ? b.createdAt.seconds : 0;
+    return bTime - aTime;
+  });
+
+  sorted.forEach(sound => {
     const gradient = getGradient(sound.id);
     const canEdit = state.isAdmin || (state.currentUser && state.currentUser.uid === sound.userId);
+    const likeCount = (sound.likes || []).length;
+    const isLiked = state.currentUser && (sound.likes || []).includes(state.currentUser.uid);
     const card = document.createElement('div');
     card.className = 'sound-card'; card.dataset.id = sound.id;
     card.style.setProperty('--card-color-1', gradient.colors[0]);
@@ -808,10 +822,14 @@ function renderSounds() {
     let visual = `<div class="card-icon" style="background:linear-gradient(135deg,${gradient.colors[0]},${gradient.colors[1]})"><i class="fa-solid fa-play"></i></div>`;
     if (sound.thumbnailData) visual = `<img src="${sound.thumbnailData}" class="card-thumbnail">`;
     card.innerHTML = `
-      ${canEdit ? `<div class="card-actions">
-        <button onclick="event.stopPropagation(); editSound('${sound.id}');" title="Edit"><i class="fa-solid fa-pencil"></i></button>
-        <button onclick="event.stopPropagation(); deleteSound('${sound.id}');" title="Delete"><i class="fa-solid fa-trash"></i></button>
-      </div>` : ''}
+      <div class="card-actions">
+        <button class="btn-like ${isLiked ? 'liked' : ''}" onclick="event.stopPropagation(); toggleLike('${sound.id}');" title="Like">
+          <i class="fa-${isLiked ? 'solid' : 'regular'} fa-heart"></i>
+          ${likeCount > 0 ? `<span class="like-count">${likeCount}</span>` : ''}
+        </button>
+        ${canEdit ? `<button onclick="event.stopPropagation(); editSound('${sound.id}');" title="Edit"><i class="fa-solid fa-pencil"></i></button>
+        <button onclick="event.stopPropagation(); deleteSound('${sound.id}');" title="Delete"><i class="fa-solid fa-trash"></i></button>` : ''}
+      </div>
       ${visual}
       <div class="card-title">${escapeHtml(sound.name)}</div>
     `;
@@ -826,6 +844,21 @@ window.deleteSound = async function(docId) {
   catch (e) { showToast('Delete failed: ' + e.message, 'error'); }
 };
 window.editSound = function(docId) { openEditModal(docId); };
+window.toggleLike = async function(docId) {
+  if (!state.currentUser) { showToast('Login to like sounds', 'warning'); return; }
+  const uid = state.currentUser.uid;
+  const sound = state.sounds.find(s => s.id === docId);
+  if (!sound) return;
+  const isLiked = (sound.likes || []).includes(uid);
+  try {
+    await updateDoc(doc(db, 'sounds', docId), {
+      likes: isLiked ? arrayRemove(uid) : arrayUnion(uid)
+    });
+  } catch (e) {
+    console.error('Like failed:', e);
+    showToast('Like failed: ' + e.message, 'error');
+  }
+};
 
 // ============================================
 // BIND EVENTS

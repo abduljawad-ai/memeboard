@@ -839,6 +839,43 @@ input, select, textarea {
   border-color: var(--error);
 }
 
+/* Like Button */
+.btn-like {
+  position: relative;
+}
+
+.btn-like.liked {
+  color: #ef4444 !important;
+  background: rgba(239, 68, 68, 0.25) !important;
+  border-color: rgba(239, 68, 68, 0.4) !important;
+}
+
+.btn-like.liked i {
+  filter: drop-shadow(0 0 4px rgba(239, 68, 68, 0.6));
+}
+
+.btn-like:hover {
+  color: #ef4444 !important;
+  transform: scale(1.2) !important;
+}
+
+.like-count {
+  font-size: 0.6rem;
+  font-weight: 700;
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  background: #ef4444;
+  color: white;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
 /* Card Title */
 .card-title {
   position: absolute;
