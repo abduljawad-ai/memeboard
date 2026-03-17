@@ -6,12 +6,11 @@
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import {
-  getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged,
-  signInWithEmailAndPassword, createUserWithEmailAndPassword
+  getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged
 } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import {
   getFirestore, collection, addDoc, onSnapshot, doc, deleteDoc, updateDoc,
-  query, orderBy, serverTimestamp
+  query, orderBy, serverTimestamp, getDoc
 } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
 // ============================================
@@ -30,15 +29,11 @@ const firebaseConfig = {
 // ============================================
 // ADMIN CONFIGURATION
 // ============================================
-// Replace this with your actual Google UID once logged in!
-// For now, it's a placeholder. When you log in, check the console for your UID.
-const ADMIN_UID = "Db3uryElkEdX90GlEHsyhOMugD43"; 
+const ADMIN_UID = "Db3uryElkEdX90GlEHsyhOMugD43";
 
 // ============================================
 // CONSTANTS
 // ============================================
-// Firestore doc limit is 1MB. Base64 inflates ~33%, so max raw file ≈ 700KB.
-// We set 700KB to leave room for the other document fields.
 const MAX_FILE_SIZE = 700 * 1024; // 700 KB
 const ALLOWED_EXTENSIONS = ['.mp3', '.wav', '.ogg'];
 const ALLOWED_MIME_TYPES = [
@@ -66,11 +61,8 @@ const state = {
   activeAudios: new Map(),
   selectedFile: null,
   selectedThumbFile: null,
-  
-  // Edit State
   editSelectedThumbFile: null,
   isEditing: false,
-
   isUploading: false,
   currentUser: null,
   isAdmin: false
@@ -84,9 +76,6 @@ let auth;
 let firebaseReady = false;
 
 try {
-  if (firebaseConfig.apiKey === 'YOUR_API_KEY') {
-    throw new Error('Firebase not configured');
-  }
   const app = initializeApp(firebaseConfig);
   db = getFirestore(app);
   auth = getAuth(app);
@@ -96,80 +85,37 @@ try {
 }
 
 // ============================================
-// AUTHENTICATION
+// DOM HELPERS
+// ============================================
+const $ = (s) => document.querySelector(s);
+
+// ============================================
+// AUTHENTICATION (Google Popup — works on localhost)
 // ============================================
 async function handleLogin() {
   try {
     const provider = new GoogleAuthProvider();
-    await signInWithPopup(auth, provider);
+    // signInWithPopup works on localhost. The COOP console warning is harmless.
+    const result = await signInWithPopup(auth, provider);
+    if (result.user) {
+      showToast("Signed in as " + (result.user.displayName || result.user.email), "success");
+    }
+    const loginPage = $('#loginPage');
+    if (loginPage) loginPage.classList.remove('show');
   } catch (error) {
+    // If popup was closed by user, don't show an error
+    if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
+      return;
+    }
     console.error("Login failed:", error);
-    showToast("Login failed. Please try again.", "error");
-  }
-}
-
-async function handleEmailLogin(e) {
-  e.preventDefault();
-  const email = $('#loginEmail').value.trim();
-  const password = $('#loginPassword').value;
-
-  if (!email || !password) {
-    showToast("Please enter email and password.", "warning");
-    return;
-  }
-
-  const btn = $('#loginEmailBtn');
-  btn.classList.add('loading');
-  btn.disabled = true;
-
-  try {
-    await signInWithEmailAndPassword(auth, email, password);
-    $('#loginForm').reset();
-  } catch (error) {
-    console.error("Email login failed:", error);
-    let msg = "Login failed.";
-    if (error.code === 'auth/invalid-credential') msg = "Invalid email or password.";
-    showToast(msg, "error");
-  } finally {
-    btn.classList.remove('loading');
-    btn.disabled = false;
-  }
-}
-
-async function handleEmailSignup() {
-  const email = $('#loginEmail').value.trim();
-  const password = $('#loginPassword').value;
-
-  if (!email || !password) {
-    showToast("Please enter email and password to sign up.", "warning");
-    return;
-  }
-
-  if (password.length < 6) {
-    showToast("Password should be at least 6 characters.", "warning");
-    return;
-  }
-
-  const btn = $('#signupEmailBtn');
-  btn.disabled = true;
-
-  try {
-    await createUserWithEmailAndPassword(auth, email, password);
-    $('#loginForm').reset();
-    showToast("Account created successfully!", "success");
-  } catch (error) {
-    console.error("Email signup failed:", error);
-    let msg = "Signup failed.";
-    if (error.code === 'auth/email-already-in-use') msg = "Email already in use.";
-    showToast(msg, "error");
-  } finally {
-    btn.disabled = false;
+    showToast("Login failed: " + error.message, "error");
   }
 }
 
 async function handleLogout() {
   try {
     await signOut(auth);
+    showToast("Signed out", "info");
   } catch (error) {
     console.error("Logout failed:", error);
   }
@@ -185,66 +131,52 @@ function initAuthListener() {
     const loginBtn = $('#loginBtn');
     const userProfile = $('#userProfile');
     const userAvatar = $('#userAvatar');
+    const userNameEl = $('#userName');
     const uploadBtn = $('#openUpload');
     const loginPage = $('#loginPage');
 
     if (user) {
-      // User is logged in
-      console.log("Logged in with UID:", user.uid); // To find the UID for the admin config
-      
-      /* Temporary: prompt the user so they can copy their UID easily
-      if (user.uid !== ADMIN_UID) {
-        setTimeout(() => {
-          prompt("Your Firebase UID is below. Please copy it and paste it to the AI Chat to make you the Admin:", user.uid);
-        }, 1000);
-      } */
-      
-      // Hide Login Overlay
+      // Hide login overlay
       if (loginPage) {
         loginPage.classList.remove('show');
-        loginPage.style.display = 'none';
       }
 
-      loginBtn.style.display = 'none';
-      userProfile.style.display = 'flex';
-      userAvatar.src = user.photoURL || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(user.email || 'User');
-      
-      // Enable Uploads
-      uploadBtn.style.opacity = '1';
-      uploadBtn.style.pointerEvents = 'auto';
-      uploadBtn.title = "Upload a new sound";
+      // Show user profile, hide login button
+      if (loginBtn) loginBtn.style.display = 'none';
+      if (userProfile) userProfile.style.display = 'flex';
+
+      const name = user.displayName || user.email.split('@')[0];
+      if (userAvatar) userAvatar.textContent = name.charAt(0).toUpperCase();
+      if (userNameEl) userNameEl.textContent = name;
+
+      // Enable upload
+      if (uploadBtn) {
+        uploadBtn.style.opacity = '1';
+        uploadBtn.style.pointerEvents = 'auto';
+        uploadBtn.title = "Upload a new sound";
+      }
     } else {
-      // User is logged out
-      // Show Login Overlay
-      if (loginPage) {
-        loginPage.classList.add('show');
-        loginPage.style.display = 'flex';
+      // Show login button, hide profile
+      if (loginBtn) loginBtn.style.display = 'inline-flex';
+      if (userProfile) userProfile.style.display = 'none';
+
+      // Disable upload
+      if (uploadBtn) {
+        uploadBtn.style.opacity = '0.5';
+        uploadBtn.style.pointerEvents = 'none';
+        uploadBtn.title = "Login to upload";
       }
-
-      loginBtn.style.display = 'inline-flex';
-      userProfile.style.display = 'none';
-      
-      // Disable Uploads
-      uploadBtn.style.opacity = '0.5';
-      uploadBtn.style.pointerEvents = 'none';
-      uploadBtn.title = "Login to upload";
     }
-
-    // Re-render sounds to show/hide edit and delete buttons based on auth state
     renderSounds();
   });
 }
-
-// ============================================
-// DOM HELPERS
-// ============================================
-const $ = (s) => document.querySelector(s);
 
 // ============================================
 // TOAST NOTIFICATION SYSTEM
 // ============================================
 function showToast(message, type = 'success', duration = 4000) {
   const container = $('#toastContainer');
+  if (!container) return;
   const toast = document.createElement('div');
   toast.className = `toast toast-${type}`;
 
@@ -306,9 +238,6 @@ function getGradient(id) {
   return GRADIENTS[hashString(id) % GRADIENTS.length];
 }
 
-/**
- * Convert a File to a base64 data URL string.
- */
 function fileToBase64(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -322,7 +251,6 @@ function fileToBase64(file) {
 // AUDIO ENGINE
 // ============================================
 function playSound(docId, dataUrl) {
-  // If same sound is playing, restart it
   if (state.activeAudios.has(docId)) {
     const existing = state.activeAudios.get(docId);
     existing.pause();
@@ -381,51 +309,30 @@ function pulseCard(docId) {
 // ============================================
 // FILE VALIDATION
 // ============================================
-const MAX_THUMB_SIZE = 300 * 1024; // 300 KB for images
-
 function validateFile(file) {
   if (!file) return { valid: false, error: 'No file selected.' };
-
   const ext = '.' + file.name.split('.').pop().toLowerCase();
-
   if (!ALLOWED_EXTENSIONS.includes(ext)) {
     return { valid: false, error: `Invalid file type "${ext}". Allowed: ${ALLOWED_EXTENSIONS.join(', ')}` };
   }
-
-  if (file.type && !ALLOWED_MIME_TYPES.includes(file.type) && !ALLOWED_EXTENSIONS.includes(ext)) {
-    return { valid: false, error: 'Invalid audio format. Use MP3, WAV, or OGG.' };
-  }
-
   if (file.size > MAX_FILE_SIZE) {
     const sizeKB = (file.size / 1024).toFixed(0);
     return { valid: false, error: `File too large (${sizeKB} KB). Max is 700 KB.` };
   }
-
-  if (file.size === 0) {
-    return { valid: false, error: 'File is empty.' };
-  }
-
   return { valid: true };
 }
 
 function validateImageFile(file) {
   if (!file) return { valid: false, error: 'No image selected.' };
-  
   if (!file.type.startsWith('image/')) {
     return { valid: false, error: 'Invalid file type. Must be an image.' };
   }
-
-  // We no longer reject large images here, because we squash them before upload.
   return { valid: true };
 }
 
 // ============================================
-// IMAGE RESIZING UTILITY
+// IMAGE RESIZING
 // ============================================
-/**
- * Reads an image file and scales it down so its max dimension is `maxSize`.
- * Returns a Base64 JPEG string (quality 0.8) perfect for Firestore thumbnails.
- */
 function resizeImage(file, maxSize = 400) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -434,7 +341,6 @@ function resizeImage(file, maxSize = 400) {
       img.onload = () => {
         let width = img.width;
         let height = img.height;
-
         if (width > height) {
           if (width > maxSize) {
             height = Math.round((height *= maxSize / width));
@@ -446,41 +352,32 @@ function resizeImage(file, maxSize = 400) {
             height = maxSize;
           }
         }
-
         const canvas = document.createElement('canvas');
         canvas.width = width;
         canvas.height = height;
-
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, width, height);
-
-        // Export as JPEG with 80% quality to ensure it's very small
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
-        resolve(dataUrl);
+        resolve(canvas.toDataURL('image/jpeg', 0.8));
       };
-      img.onerror = () => reject(new Error('Failed to load image for resizing.'));
+      img.onerror = () => reject(new Error('Failed to load image.'));
       img.src = e.target.result;
     };
-    reader.onerror = () => reject(new Error('Failed to read image file.'));
     reader.readAsDataURL(file);
   });
 }
 
 // ============================================
-// UPLOAD SYSTEM (Base64 → Firestore)
+// UPLOAD SYSTEM
 // ============================================
 async function uploadSound() {
   if (state.isUploading) return;
-
+  if (!state.currentUser) {
+    showToast('Please login first', 'warning');
+    return;
+  }
   const name = $('#soundName').value.trim();
   if (!name) {
     showToast('Please enter a sound name', 'warning');
-    $('#soundName').focus();
-    return;
-  }
-  if (name.length < 2) {
-    showToast('Name must be at least 2 characters', 'warning');
-    $('#soundName').focus();
     return;
   }
   if (!state.selectedFile) {
@@ -488,70 +385,39 @@ async function uploadSound() {
     return;
   }
 
+  // Validate audio file
   const validation = validateFile(state.selectedFile);
   if (!validation.valid) {
-    showToast(validation.error, 'error');
+    showToast(validation.error, 'warning');
     return;
   }
 
   state.isUploading = true;
   setUploadLoadingState(true);
   showProgress(true);
-
   try {
-    // Simulate progress
-    showProgress(true);
-
-    // 1. Convert Audio to Base64
     updateProgress(20);
     const audioBase64 = await fileToBase64(state.selectedFile);
     updateProgress(50);
-
-    // 2. Prepare Thumbnail (Squash if needed)
     let thumbnailBase64 = null;
     if (state.selectedThumbFile) {
-      updateProgress(60);
       thumbnailBase64 = await resizeImage(state.selectedThumbFile, 400);
-      updateProgress(80);
     }
-    // This updateProgress(70) was moved from before the thumbnail processing
-    // to after it, to ensure progress is updated correctly.
-    // The original instruction had it at 70, but 80 is more appropriate after thumb processing.
-    // Keeping the original instruction's 70 for now, but noting the potential for adjustment.
-    // For now, I'll remove the redundant updateProgress(70) as 80 is already set.
-    // updateProgress(70); // Removed as 80 is set above.
-
+    updateProgress(80);
     const docData = {
       name: name,
       audioData: audioBase64,
-      fileName: state.selectedFile.name,
-      fileSize: state.selectedFile.size,
+      userId: state.currentUser.uid,
       createdAt: serverTimestamp(),
     };
-    
-    // Add auth mapping
-    if (state.currentUser) {
-      docData.userId = state.currentUser.uid;
-      docData.userName = state.currentUser.displayName || 'Unknown';
-    }
-    
-    if (thumbnailBase64) {
-      docData.thumbnailData = thumbnailBase64;
-    }
-
-    // Save directly to Firestore
+    if (thumbnailBase64) docData.thumbnailData = thumbnailBase64;
     await addDoc(collection(db, 'sounds'), docData);
-
     updateProgress(100);
-    showToast(`"${name}" uploaded successfully! 🎉`, 'success');
+    showToast(`"${name}" uploaded!`, 'success');
     closeModal();
-
   } catch (error) {
     console.error('Upload failed:', error);
-    let msg = 'Upload failed. Please try again.';
-    if (error.code === 'permission-denied') msg = 'Upload not authorized. Check Firestore rules.';
-    else if (error.message?.includes('exceeds the maximum')) msg = 'File too large for Firestore. Try a smaller file.';
-    showToast(msg, 'error');
+    showToast('Upload failed: ' + error.message, 'error');
   } finally {
     state.isUploading = false;
     setUploadLoadingState(false);
@@ -561,527 +427,349 @@ async function uploadSound() {
 
 function setUploadLoadingState(loading) {
   const btn = $('#submitUpload');
-  const cancelBtn = $('#cancelUpload');
-  const closeBtn = $('#closeModal');
-
-  btn.disabled = loading;
-  btn.classList.toggle('loading', loading);
-  cancelBtn.disabled = loading;
-  closeBtn.disabled = loading;
+  if (btn) {
+    btn.disabled = loading;
+    btn.classList.toggle('loading', loading);
+  }
 }
 
 function showProgress(show) {
-  $('#progressContainer').style.display = show ? 'block' : 'none';
-  if (!show) updateProgress(0);
+  const el = $('#progressContainer');
+  if (el) el.style.display = show ? 'block' : 'none';
 }
 
 function updateProgress(pct) {
-  $('#progressBar').style.width = pct.toFixed(0) + '%';
-  $('#progressText').textContent = pct.toFixed(0) + '%';
+  const bar = $('#progressBar');
+  const text = $('#progressText');
+  if (bar) bar.style.width = pct + '%';
+  if (text) text.textContent = pct + '%';
 }
 
 // ============================================
-// MODAL MANAGEMENT
+// MODALS
 // ============================================
 function openModal() {
+  if (!state.currentUser) {
+    showToast('Please login first', 'warning');
+    $('#loginPage').classList.add('show');
+    return;
+  }
   resetModalForm();
   $('#uploadModal').classList.add('show');
-  document.body.style.overflow = 'hidden';
-  setTimeout(() => $('#soundName').focus(), 300);
 }
 
 function closeModal() {
-  if (state.isUploading) return;
-  $('#uploadModal').classList.remove('show');
-  document.body.style.overflow = '';
-  resetModalForm();
+  const modal = $('#uploadModal');
+  if (modal) modal.classList.remove('show');
 }
 
 function resetModalForm() {
-  $('#soundName').value = '';
-  $('#charCount').textContent = '0';
-  
+  const nameInput = $('#soundName');
+  if (nameInput) nameInput.value = '';
   state.selectedFile = null;
-  $('#fileInfo').style.display = 'none';
-  $('#dropZone').style.display = 'flex';
-  $('#audioInput').value = '';
-  
   state.selectedThumbFile = null;
-  $('#thumbInfo').style.display = 'none';
-  $('#thumbDropZone').style.display = 'flex';
-  $('#thumbInput').value = '';
-  $('#thumbPreview').src = '';
-  
-  showProgress(false);
-  setUploadLoadingState(false);
+  const fileInfo = $('#fileInfo');
+  const dropZone = $('#dropZone');
+  const thumbInfo = $('#thumbInfo');
+  const thumbDropZone = $('#thumbDropZone');
+  if (fileInfo) fileInfo.style.display = 'none';
+  if (dropZone) dropZone.style.display = 'flex';
+  if (thumbInfo) thumbInfo.style.display = 'none';
+  if (thumbDropZone) thumbDropZone.style.display = 'flex';
 }
 
-// ============================================
-// FILE SELECTION
-// ============================================
 function handleFileSelect(file) {
   if (!file) return;
-
   const validation = validateFile(file);
   if (!validation.valid) {
-    showToast(validation.error, 'error');
+    showToast(validation.error, 'warning');
     return;
   }
-
   state.selectedFile = file;
-  $('#dropZone').style.display = 'none';
-  $('#fileInfo').style.display = 'flex';
-  $('#fileName').textContent = file.name;
-  $('#fileSize').textContent = formatFileSize(file.size);
-}
-
-function removeSelectedFile() {
-  state.selectedFile = null;
-  $('#fileInfo').style.display = 'none';
-  $('#dropZone').style.display = 'flex';
-  $('#audioInput').value = '';
+  const dropZone = $('#dropZone');
+  const fileInfo = $('#fileInfo');
+  const fileName = $('#fileName');
+  const fileSize = $('#fileSize');
+  if (dropZone) dropZone.style.display = 'none';
+  if (fileInfo) fileInfo.style.display = 'flex';
+  if (fileName) fileName.textContent = file.name;
+  if (fileSize) fileSize.textContent = formatFileSize(file.size);
 }
 
 function handleThumbSelect(file) {
   if (!file) return;
-
   const validation = validateImageFile(file);
   if (!validation.valid) {
-    showToast(validation.error, 'error');
+    showToast(validation.error, 'warning');
     return;
   }
-
   state.selectedThumbFile = file;
-  $('#thumbDropZone').style.display = 'none';
-  $('#thumbInfo').style.display = 'flex';
-  $('#thumbName').textContent = file.name;
-  $('#thumbSize').textContent = formatFileSize(file.size);
-  
-  // Local preview
+  const thumbDropZone = $('#thumbDropZone');
+  const thumbInfo = $('#thumbInfo');
+  const thumbName = $('#thumbName');
+  const thumbSize = $('#thumbSize');
+  if (thumbDropZone) thumbDropZone.style.display = 'none';
+  if (thumbInfo) thumbInfo.style.display = 'flex';
+  if (thumbName) thumbName.textContent = file.name;
+  if (thumbSize) thumbSize.textContent = formatFileSize(file.size);
   const reader = new FileReader();
   reader.onload = (e) => {
-    $('#thumbPreview').src = e.target.result;
+    const preview = $('#thumbPreview');
+    if (preview) preview.src = e.target.result;
   };
   reader.readAsDataURL(file);
 }
 
-function removeSelectedThumb() {
-  state.selectedThumbFile = null;
-  $('#thumbInfo').style.display = 'none';
-  $('#thumbDropZone').style.display = 'flex';
-  $('#thumbInput').value = '';
-  $('#thumbPreview').src = '';
+// ============================================
+// EDIT SYSTEM
+// ============================================
+function openEditModal(soundId) {
+  const sound = state.sounds.find(s => s.id === soundId);
+  if (!sound) return;
+  const nameInput = $('#editSoundName');
+  const idInput = $('#editSoundId');
+  if (nameInput) nameInput.value = sound.name;
+  if (idInput) idInput.value = soundId;
+  state.editSelectedThumbFile = null;
+  const editThumbInfo = $('#editThumbInfo');
+  const editThumbDropZone = $('#editThumbDropZone');
+  if (editThumbInfo) editThumbInfo.style.display = 'none';
+  if (editThumbDropZone) editThumbDropZone.style.display = 'flex';
+  $('#editModal').classList.add('show');
+}
+
+async function submitEdit() {
+  const soundId = $('#editSoundId').value;
+  const newName = $('#editSoundName').value.trim();
+  if (!soundId || !newName) {
+    showToast('Name is required', 'warning');
+    return;
+  }
+
+  const btn = $('#submitEdit');
+  if (btn) { btn.disabled = true; btn.classList.add('loading'); }
+  const progressEl = $('#editProgressContainer');
+  if (progressEl) progressEl.style.display = 'block';
+
+  try {
+    const updateData = { name: newName };
+    if (state.editSelectedThumbFile) {
+      const thumbBase64 = await resizeImage(state.editSelectedThumbFile, 400);
+      updateData.thumbnailData = thumbBase64;
+    }
+    await updateDoc(doc(db, 'sounds', soundId), updateData);
+    showToast('Sound updated!', 'success');
+    closeEditModal();
+  } catch (error) {
+    console.error('Edit failed:', error);
+    showToast('Update failed: ' + error.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.classList.remove('loading'); }
+    if (progressEl) progressEl.style.display = 'none';
+  }
+}
+
+function closeEditModal() {
+  const modal = $('#editModal');
+  if (modal) modal.classList.remove('show');
 }
 
 function handleEditThumbSelect(file) {
   if (!file) return;
-
   const validation = validateImageFile(file);
   if (!validation.valid) {
-    showToast(validation.error, 'error');
+    showToast(validation.error, 'warning');
     return;
   }
-
   state.editSelectedThumbFile = file;
-  $('#editThumbDropZone').style.display = 'none';
-  $('#editThumbInfo').style.display = 'flex';
-  $('#editThumbName').textContent = file.name;
-  $('#editThumbSize').textContent = formatFileSize(file.size);
-  
-  // Local preview
+  const editThumbDropZone = $('#editThumbDropZone');
+  const editThumbInfo = $('#editThumbInfo');
+  const editThumbName = $('#editThumbName');
+  if (editThumbDropZone) editThumbDropZone.style.display = 'none';
+  if (editThumbInfo) editThumbInfo.style.display = 'flex';
+  if (editThumbName) editThumbName.textContent = file.name;
   const reader = new FileReader();
   reader.onload = (e) => {
-    $('#editThumbPreview').src = e.target.result;
+    const preview = $('#editThumbPreview');
+    if (preview) preview.src = e.target.result;
   };
   reader.readAsDataURL(file);
 }
 
-function removeEditSelectedThumb() {
-  state.editSelectedThumbFile = null;
-  $('#editThumbInfo').style.display = 'none';
-  $('#editThumbDropZone').style.display = 'flex';
-  $('#editThumbInput').value = '';
-  $('#editThumbPreview').src = '';
-}
-
 // ============================================
-// REAL-TIME LISTENER (FIRESTORE)
+// LISTENER & RENDERING
 // ============================================
 function initRealtimeListener() {
   if (!firebaseReady) return;
-
   const q = query(collection(db, 'sounds'), orderBy('createdAt', 'desc'));
-
   onSnapshot(q, (snapshot) => {
-    state.sounds = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
+    state.sounds = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
     renderSounds();
-    updateSoundCount();
-  }, (error) => {
-    console.error('Firestore listener error:', error);
-    showToast('Connection lost. Retrying...', 'error');
+    const count = state.sounds.length;
+    const countEl = $('#soundCount');
+    if (countEl) countEl.innerHTML = `<i class="fa-solid fa-music"></i> ${count} sound${count === 1 ? '' : 's'}`;
   });
 }
 
-// ============================================
-// RENDERING
-// ============================================
 function renderSounds() {
   const grid = $('#soundGrid');
-  const loading = $('#loadingState');
-  const empty = $('#emptyState');
+  const loadingState = $('#loadingState');
+  const emptyState = $('#emptyState');
+  if (!grid) return;
 
-  loading.style.display = 'none';
+  if (loadingState) loadingState.style.display = 'none';
 
   if (state.sounds.length === 0) {
     grid.style.display = 'none';
-    empty.style.display = 'flex';
+    if (emptyState) emptyState.style.display = 'flex';
     return;
   }
 
-  empty.style.display = 'none';
+  if (emptyState) emptyState.style.display = 'none';
   grid.style.display = 'grid';
   grid.innerHTML = '';
 
-  state.sounds.forEach((sound) => {
+  state.sounds.forEach(sound => {
     const gradient = getGradient(sound.id);
-    const isPlaying = state.activeAudios.has(sound.id);
-
-    // Can this user edit/delete this sound?
-    const isOwner = state.currentUser && state.currentUser.uid === sound.userId;
-    const canEdit = isOwner || state.isAdmin;
-
+    const canEdit = state.isAdmin || (state.currentUser && state.currentUser.uid === sound.userId);
     const card = document.createElement('div');
-    card.className = `sound-card${isPlaying ? ' playing' : ''}`;
+    card.className = 'sound-card';
     card.dataset.id = sound.id;
     card.style.setProperty('--card-color-1', gradient.colors[0]);
     card.style.setProperty('--card-color-2', gradient.colors[1]);
-    card.style.setProperty('--glow-r', gradient.rgb[0]);
-    card.style.setProperty('--glow-g', gradient.rgb[1]);
-    card.style.setProperty('--glow-b', gradient.rgb[2]);
 
-    let visualElement = `
-      <div class="card-icon" style="background: linear-gradient(135deg, ${gradient.colors[0]}, ${gradient.colors[1]})">
-        <i class="fa-solid fa-play"></i>
-      </div>
-    `;
-
-    if (sound.thumbnailData) {
-      visualElement = `<img src="${sound.thumbnailData}" class="card-thumbnail" alt="${escapeHtml(sound.name)} thumbnail" draggable="false">`;
-    }
+    let visual = `<div class="card-icon" style="background:linear-gradient(135deg,${gradient.colors[0]},${gradient.colors[1]})"><i class="fa-solid fa-play"></i></div>`;
+    if (sound.thumbnailData) visual = `<img src="${sound.thumbnailData}" class="card-thumbnail">`;
 
     card.innerHTML = `
-      ${canEdit ? `
-        <div class="card-actions">
-          <button class="btn-card-action btn-card-edit" title="Edit sound" onclick="event.stopPropagation(); editSound('${sound.id}');">
-            <i class="fa-solid fa-pencil"></i>
-          </button>
-          <button class="btn-card-action btn-card-delete" title="Delete sound" onclick="event.stopPropagation(); deleteSound('${sound.id}');">
-            <i class="fa-solid fa-trash"></i>
-          </button>
-        </div>
-      ` : ''}
-      <div class="equalizer">
-        <div class="bar"></div>
-        <div class="bar"></div>
-        <div class="bar"></div>
-        <div class="bar"></div>
-        <div class="bar"></div>
-      </div>
-      ${visualElement}
+      ${canEdit ? `<div class="card-actions">
+        <button onclick="event.stopPropagation(); editSound('${sound.id}');" title="Edit"><i class="fa-solid fa-pencil"></i></button>
+        <button onclick="event.stopPropagation(); deleteSound('${sound.id}');" title="Delete"><i class="fa-solid fa-trash"></i></button>
+      </div>` : ''}
+      ${visual}
       <div class="card-title">${escapeHtml(sound.name)}</div>
     `;
-
-    // Play sound using the base64 audioData field
     card.addEventListener('click', () => playSound(sound.id, sound.audioData));
     grid.appendChild(card);
   });
 }
 
-function updateSoundCount() {
-  const count = state.sounds.length;
-  const label = count === 1 ? '1 sound' : `${count} sounds`;
-  $('#soundCount').innerHTML = `<i class="fa-solid fa-music"></i> ${label}`;
-}
-
-// ============================================
-// SETUP NOTICE
-// ============================================
-function showSetupNotice() {
-  $('#loadingState').style.display = 'none';
-  $('#setupNotice').style.display = 'flex';
-}
-
-// ============================================
-// ADMIN/EDIT ACTIONS
-// ============================================
-
-window.editSound = function(docId) {
-  const sound = state.sounds.find(s => s.id === docId);
-  if (!sound) return;
-
-  $('#editSoundId').value = docId;
-  $('#editSoundName').value = sound.name;
-  $('#editCharCount').textContent = sound.name.length;
-  
-  removeEditSelectedThumb(); // Reset thumb input
-
-  $('#editModal').classList.add('show');
-  document.body.style.overflow = 'hidden';
-  setTimeout(() => $('#editSoundName').focus(), 300);
-};
-
-function closeEditModal() {
-  if (state.isEditing) return;
-  $('#editModal').classList.remove('show');
-  document.body.style.overflow = '';
-  $('#editSoundId').value = '';
-  $('#editSoundName').value = '';
-  removeEditSelectedThumb();
-  setEditLoadingState(false);
-}
-
-async function updateSoundData() {
-  if (state.isEditing) return;
-
-  const docId = $('#editSoundId').value;
-  const name = $('#editSoundName').value.trim();
-
-  if (!name) {
-    showToast('Name cannot be empty', 'warning');
-    return;
-  }
-
-  state.isEditing = true;
-  setEditLoadingState(true);
-
-  try {
-    const updateData = { name: name };
-
-    // If they selected a *new* thumbnail, convert and add it to the update
-    if (state.editSelectedThumbFile) {
-      const base64ThumbUrl = await resizeImage(state.editSelectedThumbFile, 400);
-      updateData.thumbnailData = base64ThumbUrl;
-    }
-
-    await updateDoc(doc(db, 'sounds', docId), updateData);
-    
-    showToast('Sound updated!', 'success');
-    closeEditModal();
-  } catch (error) {
-    console.error('Update failed:', error);
-    showToast('Failed to update sound. Check permissions.', 'error');
-  } finally {
-    state.isEditing = false;
-    setEditLoadingState(false);
-  }
-}
-
-function setEditLoadingState(loading) {
-  const btn = $('#submitEdit');
-  const cancelBtn = $('#cancelEdit');
-  const closeBtn = $('#closeEditModal');
-
-  btn.disabled = loading;
-  btn.classList.toggle('loading', loading);
-  cancelBtn.disabled = loading;
-  closeBtn.disabled = loading;
-}
-
+// Global functions for inline onclick handlers
 window.deleteSound = async function(docId) {
-  if (!confirm('Are you sure you want to delete this sound?')) return;
-  
+  if (!confirm('Delete this sound?')) return;
   try {
     await deleteDoc(doc(db, 'sounds', docId));
-    showToast('Sound deleted successfully', 'success');
-  } catch (error) {
-    console.error('Delete failed:', error);
-    showToast('Failed to delete sound. Check permissions.', 'error');
+    showToast('Deleted', 'success');
+  } catch (e) {
+    console.error('Delete failed:', e);
+    showToast('Delete failed: ' + e.message, 'error');
   }
 };
 
+window.editSound = function(docId) {
+  openEditModal(docId);
+};
+
 // ============================================
-// EVENT LISTENERS
+// BIND EVENTS
 // ============================================
 function bindEvents() {
-  // Login / Auth Flow
-  $('#loginBtn').addEventListener('click', () => $('#loginPage').classList.add('show'));
+  // Login overlay
+  const loginBtn = $('#loginBtn');
   const loginGoogleBtn = $('#loginGoogleBtn');
+  const logoutBtn = $('#logoutBtn');
+
+  if (loginBtn) loginBtn.addEventListener('click', () => {
+    const page = $('#loginPage');
+    if (page) page.classList.add('show');
+  });
   if (loginGoogleBtn) loginGoogleBtn.addEventListener('click', handleLogin);
-  
-  const loginForm = $('#loginForm');
-  if (loginForm) loginForm.addEventListener('submit', handleEmailLogin);
-  
-  const signupEmailBtn = $('#signupEmailBtn');
-  if (signupEmailBtn) signupEmailBtn.addEventListener('click', handleEmailSignup);
+  if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
 
-  $('#logoutBtn').addEventListener('click', handleLogout);
-
-  // Upload Modal Listener
-  $('#openUpload').addEventListener('click', openModal);
-  const emptyBtn = $('#emptyUploadBtn');
-  if (emptyBtn) emptyBtn.addEventListener('click', openModal);
-
-  $('#closeModal').addEventListener('click', closeModal);
-  $('#cancelUpload').addEventListener('click', closeModal);
-  $('#uploadModal').addEventListener('click', (e) => {
-    if (e.target.id === 'uploadModal') closeModal();
-  });
-
-  // Edit Modal Listeners
-  $('#closeEditModal').addEventListener('click', closeEditModal);
-  $('#cancelEdit').addEventListener('click', closeEditModal);
-  $('#editModal').addEventListener('click', (e) => {
-    if (e.target.id === 'editModal') closeEditModal();
-  });
-  $('#submitEdit').addEventListener('click', updateSoundData);
-  $('#editSoundName').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !state.isEditing) updateSoundData();
-  });
-  $('#editSoundName').addEventListener('input', () => {
-    $('#editCharCount').textContent = $('#editSoundName').value.length;
-  });
-
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-      closeModal();
-      closeEditModal();
-    }
-  });
-
-  $('#submitUpload').addEventListener('click', uploadSound);
-
-  $('#soundName').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !state.isUploading) uploadSound();
-  });
-
-  $('#soundName').addEventListener('input', () => {
-    $('#charCount').textContent = $('#soundName').value.length;
-  });
-
-  $('#stopAll').addEventListener('click', () => {
-    stopAll();
-    showToast('All sounds stopped', 'info');
-  });
-
-  // Drop zone
-  const dropZone = $('#dropZone');
+  // Upload modal
+  const openUploadBtn = $('#openUpload');
+  const closeModalBtn = $('#closeModal');
+  const submitUploadBtn = $('#submitUpload');
+  const cancelUploadBtn = $('#cancelUpload');
   const audioInput = $('#audioInput');
-
-  dropZone.addEventListener('click', () => audioInput.click());
-  dropZone.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      audioInput.click();
-    }
-  });
-
-  audioInput.addEventListener('change', (e) => handleFileSelect(e.target.files[0]));
-
-  dropZone.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    dropZone.classList.add('drag-over');
-  });
-
-  dropZone.addEventListener('dragleave', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    dropZone.classList.remove('drag-over');
-  });
-
-  dropZone.addEventListener('drop', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    dropZone.classList.remove('drag-over');
-    if (e.dataTransfer.files.length > 0) handleFileSelect(e.dataTransfer.files[0]);
-  });
-
-  $('#removeFile').addEventListener('click', (e) => {
-    e.stopPropagation();
-    removeSelectedFile();
-  });
-
-  // Thumb Drop zone
-  const thumbDropZone = $('#thumbDropZone');
   const thumbInput = $('#thumbInput');
+  const dropZone = $('#dropZone');
+  const thumbDropZone = $('#thumbDropZone');
+  const stopAllBtn = $('#stopAll');
+  const emptyUploadBtn = $('#emptyUploadBtn');
+  const removeFileBtn = $('#removeFile');
+  const removeThumbBtn = $('#removeThumb');
+  const soundNameInput = $('#soundName');
+  const charCount = $('#charCount');
 
-  thumbDropZone.addEventListener('click', () => thumbInput.click());
-  thumbDropZone.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      thumbInput.click();
-    }
+  if (openUploadBtn) openUploadBtn.addEventListener('click', openModal);
+  if (closeModalBtn) closeModalBtn.addEventListener('click', closeModal);
+  if (submitUploadBtn) submitUploadBtn.addEventListener('click', uploadSound);
+  if (cancelUploadBtn) cancelUploadBtn.addEventListener('click', closeModal);
+  if (audioInput) audioInput.addEventListener('change', (e) => handleFileSelect(e.target.files[0]));
+  if (thumbInput) thumbInput.addEventListener('change', (e) => handleThumbSelect(e.target.files[0]));
+  if (dropZone) dropZone.addEventListener('click', () => audioInput && audioInput.click());
+  if (thumbDropZone) thumbDropZone.addEventListener('click', () => thumbInput && thumbInput.click());
+  if (stopAllBtn) stopAllBtn.addEventListener('click', stopAll);
+  if (emptyUploadBtn) emptyUploadBtn.addEventListener('click', openModal);
+
+  // Remove file buttons
+  if (removeFileBtn) removeFileBtn.addEventListener('click', () => {
+    state.selectedFile = null;
+    if ($('#fileInfo')) $('#fileInfo').style.display = 'none';
+    if ($('#dropZone')) $('#dropZone').style.display = 'flex';
+    if (audioInput) audioInput.value = '';
+  });
+  if (removeThumbBtn) removeThumbBtn.addEventListener('click', () => {
+    state.selectedThumbFile = null;
+    if ($('#thumbInfo')) $('#thumbInfo').style.display = 'none';
+    if ($('#thumbDropZone')) $('#thumbDropZone').style.display = 'flex';
+    if (thumbInput) thumbInput.value = '';
   });
 
-  thumbInput.addEventListener('change', (e) => handleThumbSelect(e.target.files[0]));
+  // Char counter on sound name
+  if (soundNameInput && charCount) {
+    soundNameInput.addEventListener('input', () => {
+      charCount.textContent = soundNameInput.value.length;
+    });
+  }
 
-  thumbDropZone.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    thumbDropZone.classList.add('drag-over');
-  });
-
-  thumbDropZone.addEventListener('dragleave', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    thumbDropZone.classList.remove('drag-over');
-  });
-
-  thumbDropZone.addEventListener('drop', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    thumbDropZone.classList.remove('drag-over');
-    if (e.dataTransfer.files.length > 0) handleThumbSelect(e.dataTransfer.files[0]);
-  });
-
-  $('#removeThumb').addEventListener('click', (e) => {
-    e.stopPropagation();
-    removeSelectedThumb();
-  });
-
-  // Edit Thumb Drop zone
-  const editThumbDropZone = $('#editThumbDropZone');
+  // Edit modal
+  const closeEditModalBtn = $('#closeEditModal');
+  const cancelEditBtn = $('#cancelEdit');
+  const submitEditBtn = $('#submitEdit');
   const editThumbInput = $('#editThumbInput');
+  const editThumbDropZone = $('#editThumbDropZone');
+  const editSoundNameInput = $('#editSoundName');
+  const editCharCount = $('#editCharCount');
+  const removeEditThumbBtn = $('#removeEditThumb');
 
-  editThumbDropZone.addEventListener('click', () => editThumbInput.click());
-  editThumbDropZone.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      editThumbInput.click();
-    }
+  if (closeEditModalBtn) closeEditModalBtn.addEventListener('click', closeEditModal);
+  if (cancelEditBtn) cancelEditBtn.addEventListener('click', closeEditModal);
+  if (submitEditBtn) submitEditBtn.addEventListener('click', submitEdit);
+  if (editThumbInput) editThumbInput.addEventListener('change', (e) => handleEditThumbSelect(e.target.files[0]));
+  if (editThumbDropZone) editThumbDropZone.addEventListener('click', () => editThumbInput && editThumbInput.click());
+  if (removeEditThumbBtn) removeEditThumbBtn.addEventListener('click', () => {
+    state.editSelectedThumbFile = null;
+    if ($('#editThumbInfo')) $('#editThumbInfo').style.display = 'none';
+    if ($('#editThumbDropZone')) $('#editThumbDropZone').style.display = 'flex';
+    if (editThumbInput) editThumbInput.value = '';
   });
 
-  editThumbInput.addEventListener('change', (e) => handleEditThumbSelect(e.target.files[0]));
+  // Edit char counter
+  if (editSoundNameInput && editCharCount) {
+    editSoundNameInput.addEventListener('input', () => {
+      editCharCount.textContent = editSoundNameInput.value.length;
+    });
+  }
 
-  editThumbDropZone.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    editThumbDropZone.classList.add('drag-over');
-  });
-
-  editThumbDropZone.addEventListener('dragleave', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    editThumbDropZone.classList.remove('drag-over');
-  });
-
-  editThumbDropZone.addEventListener('drop', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    editThumbDropZone.classList.remove('drag-over');
-    if (e.dataTransfer.files.length > 0) handleEditThumbSelect(e.dataTransfer.files[0]);
-  });
-
-  $('#removeEditThumb').addEventListener('click', (e) => {
-    e.stopPropagation();
-    removeEditSelectedThumb();
-  });
-
-  window.addEventListener('dragover', (e) => e.preventDefault());
-  window.addEventListener('drop', (e) => e.preventDefault());
+  // Close login overlay when clicking outside
+  const loginPage = $('#loginPage');
+  if (loginPage) {
+    loginPage.addEventListener('click', (e) => {
+      if (e.target === loginPage) loginPage.classList.remove('show');
+    });
+  }
 }
 
 // ============================================
@@ -1089,12 +777,10 @@ function bindEvents() {
 // ============================================
 function init() {
   bindEvents();
-  if (!firebaseReady) {
-    showSetupNotice();
-    return;
+  if (firebaseReady) {
+    initAuthListener();
+    initRealtimeListener();
   }
-  initAuthListener();
-  initRealtimeListener();
 }
 
 document.addEventListener('DOMContentLoaded', init);

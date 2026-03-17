@@ -444,7 +444,7 @@ input, select, textarea {
   position: fixed;
   inset: 0;
   z-index: 9999;
-  display: flex !important;
+  display: none;
   align-items: center;
   justify-content: center;
   background: rgba(10, 10, 26, 0.85);
@@ -457,8 +457,9 @@ input, select, textarea {
 }
 
 .login-page.show {
-  opacity: 1 !important;
-  visibility: visible !important;
+  display: flex;
+  opacity: 1;
+  visibility: visible;
 }
 
 .login-container {
@@ -508,6 +509,16 @@ input, select, textarea {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+}
+
+.login-body-centered {
+  text-align: center;
+}
+
+.coming-soon-note {
+  margin-top: 30px;
+  opacity: 0.7;
+  font-size: 0.9em;
 }
 
 .btn-login-google {
@@ -689,18 +700,19 @@ input, select, textarea {
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
-  padding: 1.5rem 1rem;
+  padding: 0;
   cursor: pointer;
   transition: all var(--transition-base);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.75rem;
+  justify-content: center;
   text-align: center;
   overflow: hidden;
   user-select: none;
   -webkit-user-select: none;
   -webkit-tap-highlight-color: transparent;
+  aspect-ratio: 1 / 1;
 }
 
 /* Gradient border effect */
@@ -740,22 +752,20 @@ input, select, textarea {
 
 /* Card Icon */
 .card-icon {
-  width: 56px;
-  height: 56px;
-  border-radius: var(--radius-md);
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.25rem;
+  font-size: 1.8rem;
   color: white;
   flex-shrink: 0;
   transition: all var(--transition-base);
-  box-shadow: var(--shadow-sm);
 }
 
 .sound-card:hover .card-icon {
-  transform: scale(1.1);
-  box-shadow: var(--shadow-md);
+  transform: scale(1.05);
 }
 
 .sound-card:active .card-icon {
@@ -764,82 +774,91 @@ input, select, textarea {
 
 /* Card Thumbnail (when present) */
 .card-thumbnail {
-  width: 56px;
-  height: 56px;
-  border-radius: var(--radius-md);
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
   object-fit: cover;
+  position: absolute;
+  top: 0;
+  left: 0;
   flex-shrink: 0;
   transition: all var(--transition-base);
-  box-shadow: var(--shadow-sm);
-  border: 1px solid var(--glass-border);
 }
 
 .sound-card:hover .card-thumbnail {
-  transform: scale(1.1);
-  box-shadow: var(--shadow-md);
+  transform: scale(1.08);
 }
 
 /* Card Actions (Edit/Delete) */
 .card-actions {
   position: absolute;
-  top: 8px;
-  left: 8px;
+  top: 6px;
+  right: 6px;
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  flex-direction: row;
+  gap: 6px;
   opacity: 0;
-  transform: translateX(-10px);
+  transform: translateY(-8px);
   transition: all var(--transition-base);
+  z-index: 10;
 }
 
 .sound-card:hover .card-actions {
   opacity: 1;
-  transform: translateX(0);
+  transform: translateY(0);
 }
 
-.btn-card-action {
-  width: 28px;
-  height: 28px;
+.card-actions button {
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.8rem;
-  background: rgba(10, 10, 26, 0.8);
+  font-size: 0.85rem;
+  background: rgba(10, 10, 26, 0.85);
   color: var(--text-secondary);
   border: 1px solid var(--glass-border);
-  backdrop-filter: blur(4px);
+  backdrop-filter: blur(8px);
+  cursor: pointer;
   transition: all var(--transition-fast);
 }
 
-.btn-card-action:hover {
+.card-actions button:hover {
   color: white;
-  transform: scale(1.1);
+  transform: scale(1.15);
 }
 
-.btn-card-edit:hover {
+.card-actions button:first-child:hover {
   background: var(--accent-blue);
   border-color: var(--accent-blue);
 }
 
-.btn-card-delete:hover {
+.card-actions button:last-child:hover {
   background: var(--error);
   border-color: var(--error);
 }
 
 /* Card Title */
 .card-title {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
   font-size: 0.8rem;
   font-weight: 600;
-  color: var(--text-primary);
+  color: white;
   line-height: 1.3;
-  max-width: 100%;
+  padding: 24px 8px 8px;
+  background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.4) 60%, transparent 100%);
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   word-break: break-word;
+  z-index: 5;
 }
 
 /* Equalizer Bars (visible when playing) */
@@ -1227,6 +1246,135 @@ input, select, textarea {
   color: var(--text-primary);
 }
 
+.login-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+.auth-toggle-text {
+  text-align: center;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.auth-toggle-text a {
+  color: var(--accent-cyan);
+  text-decoration: none;
+  font-weight: 600;
+  transition: all var(--transition-fast);
+}
+
+.auth-toggle-text a:hover {
+  filter: brightness(1.2);
+  text-decoration: underline;
+}
+
+/* Verification View */
+.verification-view {
+  text-align: center;
+  padding: 1rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  align-items: center;
+}
+
+.verification-icon {
+  width: 64px;
+  height: 64px;
+  background: rgba(6, 182, 212, 0.1);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent-cyan);
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+  border: 1px solid rgba(6, 182, 212, 0.2);
+}
+
+.verification-view h3 {
+  font-size: 1.5rem;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.verification-view p {
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin: 0;
+}
+
+.verification-view strong {
+  color: var(--text-primary);
+}
+
+.otp-container {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+  margin: 1rem 0;
+}
+
+.otp-input {
+  width: 45px;
+  height: 55px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  text-align: center;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--accent-cyan);
+  transition: all var(--transition-fast);
+}
+
+.otp-input:focus {
+  border-color: var(--accent-cyan);
+  background: rgba(255, 255, 255, 0.1);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.15);
+}
+
+.otp-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.otp-footer p {
+  font-size: 0.9rem;
+}
+
+.otp-footer a {
+  color: var(--accent-cyan);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.otp-footer a:hover {
+  text-decoration: underline;
+}
+
+.simulated-email {
+  margin-top: 1.5rem;
+  padding: 0.75rem 1rem;
+  background: rgba(6, 182, 212, 0.1);
+  border: 1px solid rgba(6, 182, 212, 0.2);
+  border-radius: var(--radius-md);
+  font-size: 0.85rem;
+  color: var(--accent-cyan);
+  animation: fadeIn 0.5s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 .btn-submit {
   padding: 0.6rem 1.5rem;
   border-radius: var(--radius-full);
@@ -1437,16 +1585,26 @@ input, select, textarea {
   }
 
   .sound-card {
-    padding: 1.25rem 0.75rem;
+    border-radius: var(--radius-md);
   }
 
   .card-icon {
-    width: 48px;
-    height: 48px;
-    font-size: 1.1rem;
+    font-size: 1.4rem;
   }
 
   .card-title {
+    font-size: 0.7rem;
+    padding: 18px 6px 6px;
+  }
+
+  .card-actions {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .card-actions button {
+    width: 32px;
+    height: 32px;
     font-size: 0.75rem;
   }
 
@@ -1468,20 +1626,27 @@ input, select, textarea {
 
 @media (max-width: 400px) {
   .sound-grid {
-    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    grid-template-columns: repeat(3, 1fr);
     gap: 0.5rem;
   }
 
   .sound-card {
-    padding: 1rem 0.5rem;
-    gap: 0.5rem;
+    border-radius: var(--radius-sm);
   }
 
   .card-icon {
-    width: 40px;
-    height: 40px;
-    font-size: 1rem;
-    border-radius: var(--radius-sm);
+    font-size: 1.2rem;
+  }
+
+  .card-title {
+    font-size: 0.65rem;
+    padding: 14px 4px 4px;
+  }
+
+  .card-actions button {
+    width: 28px;
+    height: 28px;
+    font-size: 0.7rem;
   }
 }
 
