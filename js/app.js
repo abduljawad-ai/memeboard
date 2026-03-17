@@ -33,8 +33,8 @@ const ADMIN_UID = "Db3uryElkEdX90GlEHsyhOMugD43";
 // ============================================
 const MAX_AUDIO_FILE_SIZE = 700 * 1024;    // 700 KB for direct audio
 const MAX_VIDEO_FILE_SIZE = 50 * 1024 * 1024; // 50 MB for video (audio will be extracted & trimmed)
-const AUDIO_EXTENSIONS = ['.mp3', '.wav', '.ogg'];
-const VIDEO_EXTENSIONS = ['.mp4', '.webm', '.mov'];
+const AUDIO_EXTENSIONS = ['.mp3', '.wav', '.ogg', '.m4a', '.aac', '.wma', '.flac'];
+const VIDEO_EXTENSIONS = ['.mp4', '.webm', '.mov', '.mkv', '.avi', '.3gp', '.m4v'];
 const ALL_EXTENSIONS = [...AUDIO_EXTENSIONS, ...VIDEO_EXTENSIONS];
 
 const GRADIENTS = [
@@ -164,6 +164,8 @@ function getGradient(id) { return GRADIENTS[hashString(id) % GRADIENTS.length]; 
 function fileToBase64(file) { return new Promise((r, j) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.onerror = () => j(new Error('Read failed')); fr.readAsDataURL(file); }); }
 function getFileExt(name) { return '.' + name.split('.').pop().toLowerCase(); }
 function isVideoFile(file) { return file.type.startsWith('video/') || VIDEO_EXTENSIONS.includes(getFileExt(file.name)); }
+function isAudioFile(file) { return file.type.startsWith('audio/') || AUDIO_EXTENSIONS.includes(getFileExt(file.name)); }
+function isMediaFile(file) { return isVideoFile(file) || isAudioFile(file); }
 
 // ============================================
 // AUDIO ENGINE (Playback)
@@ -548,9 +550,10 @@ function resizeImage(file, maxSize = 400) {
 // ============================================
 function validateMediaFile(file) {
   if (!file) return { valid: false, error: 'No file selected.' };
-  const ext = getFileExt(file.name);
-  if (!ALL_EXTENSIONS.includes(ext)) {
-    return { valid: false, error: `Invalid file type "${ext}". Allowed: ${ALL_EXTENSIONS.join(', ')}` };
+  // Check MIME type first (works better on mobile), then fall back to extension
+  if (!isMediaFile(file)) {
+    const ext = getFileExt(file.name);
+    return { valid: false, error: `Unsupported file type. Please select an audio or video file.` };
   }
   const maxSize = isVideoFile(file) ? MAX_VIDEO_FILE_SIZE : MAX_AUDIO_FILE_SIZE;
   if (!isVideoFile(file) && file.size > maxSize) {
