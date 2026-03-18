@@ -364,12 +364,73 @@ input, select, textarea {
 .stats-content {
   max-width: 1400px;
   margin: 0 auto;
-  padding: 0 1.5rem;
-  height: var(--stats-height);
+  padding: 0.5rem 1.5rem;
+  min-height: var(--stats-height);
   display: flex;
   align-items: center;
   justify-content: space-between;
   font-size: 0.8rem;
+  gap: 1rem;
+}
+
+.board-filters {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  overflow-x: auto;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none;  /* IE and Edge */
+  flex: 1;
+}
+
+.board-filters::-webkit-scrollbar {
+  display: none;
+}
+
+.filter-btn {
+  padding: 0.45rem 0.9rem;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--glass-border);
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.filter-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.filter-btn.active {
+  background: rgba(168, 85, 247, 0.15);
+  color: #fff;
+  border-color: rgba(168, 85, 247, 0.4);
+  box-shadow: 0 0 12px rgba(168, 85, 247, 0.2);
+}
+
+.filter-btn i {
+  font-size: 0.85rem;
+  opacity: 0.8;
+}
+
+.filter-btn.active i {
+  color: var(--accent-pink);
+  opacity: 1;
+}
+
+.stats-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-shrink: 0;
 }
 
 .sound-count {

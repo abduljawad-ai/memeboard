@@ -91,15 +91,25 @@
     </div>
   </header>
 
-  <!-- Stats Bar -->
+  <!-- Stats Bar & Filters -->
   <div class="stats-bar">
     <div class="stats-content">
-      <span class="sound-count" id="soundCount">
-        <i class="fa-solid fa-music"></i> Loading sounds...
-      </span>
-      <span class="live-badge">
-        <span class="live-dot"></span> Live Sync
-      </span>
+      <div class="board-filters" id="boardFilters">
+        <button class="filter-btn active" data-filter="all"><i class="fa-solid fa-layer-group"></i> All Sounds</button>
+        <button class="filter-btn" data-filter="new"><i class="fa-solid fa-seedling"></i> New</button>
+        <button class="filter-btn" data-filter="trending"><i class="fa-solid fa-fire"></i> Trending</button>
+        <button class="filter-btn" data-filter="most_liked"><i class="fa-solid fa-heart"></i> Most Liked</button>
+        <button class="filter-btn" data-filter="favorites" id="filterFavorites" style="display:none;"><i class="fa-solid fa-star"></i> Favorites</button>
+        <button class="filter-btn" data-filter="my_uploads" id="filterMyUploads" style="display:none;"><i class="fa-solid fa-user"></i> My Uploads</button>
+      </div>
+      <div class="stats-right">
+        <span class="sound-count" id="soundCount">
+          <i class="fa-solid fa-music"></i> Loading sounds...
+        </span>
+        <span class="live-badge">
+          <span class="live-dot"></span> Live Sync
+        </span>
+      </div>
     </div>
   </div>
 

@@ -70,6 +70,7 @@ const state = {
   previewSource: null, // currently playing AudioBufferSourceNode
   isPlaying: false,
   playheadRAF: null,
+  currentFilter: 'all',
 };
 
 // ============================================
@@ -124,10 +125,15 @@ function initAuthListener() {
       if (userAvatar) userAvatar.textContent = name.charAt(0).toUpperCase();
       if (userNameEl) userNameEl.textContent = name;
       if (uploadBtn) { uploadBtn.style.opacity = '1'; uploadBtn.style.pointerEvents = 'auto'; uploadBtn.title = "Upload a new sound"; }
+      if ($('#filterFavorites')) $('#filterFavorites').style.display = 'flex';
+      if ($('#filterMyUploads')) $('#filterMyUploads').style.display = 'flex';
     } else {
       if (loginBtn) loginBtn.style.display = 'inline-flex';
       if (userProfile) userProfile.style.display = 'none';
       if (uploadBtn) { uploadBtn.style.opacity = '0.5'; uploadBtn.style.pointerEvents = 'none'; uploadBtn.title = "Login to upload"; }
+      if ($('#filterFavorites')) $('#filterFavorites').style.display = 'none';
+      if ($('#filterMyUploads')) $('#filterMyUploads').style.display = 'none';
+      if (['favorites', 'my_uploads'].includes(state.currentFilter)) window.setFilter('all');
     }
     renderSounds();
   });
@@ -793,9 +799,6 @@ function initRealtimeListener() {
   onSnapshot(q, (snapshot) => {
     state.sounds = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
     renderSounds();
-    const count = state.sounds.length;
-    const el = $('#soundCount');
-    if (el) el.innerHTML = `<i class="fa-solid fa-music"></i> ${count} sound${count === 1 ? '' : 's'}`;
   });
 }
 
@@ -821,21 +824,53 @@ function renderSounds() {
   grid.style.display = 'grid';
   grid.innerHTML = '';
 
-  // Use saved local order; new sounds go to top, removed sounds are pruned
-  const savedOrder = loadLocalOrder();
-  const soundMap = new Map(state.sounds.map(s => [s.id, s]));
-  const ordered = [];
-  // First: add sounds in saved order (if they still exist)
-  savedOrder.forEach(id => { if (soundMap.has(id)) { ordered.push(soundMap.get(id)); soundMap.delete(id); } });
-  // Then: prepend any new sounds (not in saved order) sorted newest-first
-  const newSounds = [...soundMap.values()].sort((a, b) => {
-    const aTime = a.createdAt ? a.createdAt.seconds : 0;
-    const bTime = b.createdAt ? b.createdAt.seconds : 0;
-    return bTime - aTime;
-  });
-  const sorted = [...newSounds, ...ordered];
-  // Persist the merged order
-  saveLocalOrder(sorted.map(s => s.id));
+  // Filter sounds
+  let displaySounds = [...state.sounds];
+  if (state.currentFilter === 'my_uploads' && state.currentUser) {
+    displaySounds = displaySounds.filter(s => s.userId === state.currentUser.uid);
+  } else if (state.currentFilter === 'favorites' && state.currentUser) {
+    displaySounds = displaySounds.filter(s => (s.likes || []).includes(state.currentUser.uid));
+  }
+
+  let sorted;
+
+  if (state.currentFilter === 'all') {
+    // Use saved local order; new sounds go to top, removed sounds are pruned
+    const savedOrder = loadLocalOrder();
+    const soundMap = new Map(displaySounds.map(s => [s.id, s]));
+    const ordered = [];
+    savedOrder.forEach(id => { if (soundMap.has(id)) { ordered.push(soundMap.get(id)); soundMap.delete(id); } });
+    // Add any remaining sounds that weren't in the saved order
+    const newSounds = [...soundMap.values()].sort((a, b) => {
+      const aTime = a.createdAt ? a.createdAt.seconds : 0;
+      const bTime = b.createdAt ? b.createdAt.seconds : 0;
+      return bTime - aTime;
+    });
+    sorted = [...newSounds, ...ordered];
+    saveLocalOrder(sorted.map(s => s.id));
+  } else if (state.currentFilter === 'new' || state.currentFilter === 'my_uploads' || state.currentFilter === 'favorites') {
+    sorted = displaySounds.sort((a, b) => {
+      const aTime = a.createdAt ? a.createdAt.seconds : 0;
+      const bTime = b.createdAt ? b.createdAt.seconds : 0;
+      return bTime - aTime;
+    });
+  } else if (state.currentFilter === 'most_liked') {
+    sorted = displaySounds.sort((a, b) => (b.likes || []).length - (a.likes || []).length);
+  } else if (state.currentFilter === 'trending') {
+    const now = Date.now() / 1000;
+    sorted = displaySounds.sort((a, b) => {
+      const getScore = (s) => {
+        const likes = (s.likes || []).length;
+        const ageDays = Math.max(1, (now - (s.createdAt ? s.createdAt.seconds : now)) / 86400);
+        return likes / ageDays;
+      };
+      return getScore(b) - getScore(a);
+    });
+  }
+
+  // Update count indicator based on active filter list
+  const countEl = $('#soundCount');
+  if (countEl) countEl.innerHTML = `<i class="fa-solid fa-music"></i> ${sorted.length} sound${sorted.length === 1 ? '' : 's'}`;
 
   sorted.forEach(sound => {
     const gradient = getGradient(sound.id);
@@ -844,7 +879,7 @@ function renderSounds() {
     const isLiked = state.currentUser && (sound.likes || []).includes(state.currentUser.uid);
     const card = document.createElement('div');
     card.className = 'sound-card'; card.dataset.id = sound.id;
-    card.setAttribute('draggable', 'true');
+    if (state.currentFilter === 'all') card.setAttribute('draggable', 'true');
     card.style.setProperty('--card-color-1', gradient.colors[0]);
     card.style.setProperty('--card-color-2', gradient.colors[1]);
     let visual = `<div class="card-icon" style="background:linear-gradient(135deg,${gradient.colors[0]},${gradient.colors[1]})"><i class="fa-solid fa-play"></i></div>`;
@@ -865,8 +900,10 @@ function renderSounds() {
     grid.appendChild(card);
   });
 
-  // Attach drag-and-drop handlers
-  initGridDragAndDrop(grid);
+  // Attach drag-and-drop handlers ONLY if in 'all' view
+  if (state.currentFilter === 'all') {
+    initGridDragAndDrop(grid);
+  }
 }
 
 // ============================================
@@ -1035,10 +1072,22 @@ window.toggleLike = async function(docId) {
   }
 };
 
+window.setFilter = function(filter) {
+  state.currentFilter = filter;
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.filter === filter);
+  });
+  renderSounds();
+};
+
 // ============================================
 // BIND EVENTS
 // ============================================
 function bindEvents() {
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => window.setFilter(btn.dataset.filter));
+  });
+
   const loginBtn = $('#loginBtn'), loginGoogleBtn = $('#loginGoogleBtn'), logoutBtn = $('#logoutBtn');
   if (loginBtn) loginBtn.addEventListener('click', () => { const p = $('#loginPage'); if (p) p.classList.add('show'); });
   if (loginGoogleBtn) loginGoogleBtn.addEventListener('click', handleLogin);
