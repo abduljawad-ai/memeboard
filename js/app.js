@@ -460,13 +460,16 @@ function stopPreview() {
 // EXPORT TRIMMED AUDIO AS WAV BASE64
 // ============================================
 function exportTrimmedWav(audioBuffer, trimStartFrac, trimEndFrac) {
-  const sampleRate = audioBuffer.sampleRate;
+  const originalSampleRate = audioBuffer.sampleRate;
+  const targetSampleRate = 16000; // Downsample to 16 kHz for much smaller files
+  const ratio = originalSampleRate / targetSampleRate;
   const startSample = Math.floor(trimStartFrac * audioBuffer.length);
   const endSample = Math.floor(trimEndFrac * audioBuffer.length);
-  const numSamples = endSample - startSample;
+  const originalNumSamples = endSample - startSample;
+  const numSamples = Math.floor(originalNumSamples / ratio);
   const numChannels = 1; // mono
   const bitsPerSample = 16;
-  const byteRate = sampleRate * numChannels * bitsPerSample / 8;
+  const byteRate = targetSampleRate * numChannels * bitsPerSample / 8;
   const blockAlign = numChannels * bitsPerSample / 8;
   const dataSize = numSamples * blockAlign;
   const bufferSize = 44 + dataSize;
@@ -481,7 +484,7 @@ function exportTrimmedWav(audioBuffer, trimStartFrac, trimEndFrac) {
   view.setUint32(16, 16, true); // subchunk1 size
   view.setUint16(20, 1, true);  // PCM
   view.setUint16(22, numChannels, true);
-  view.setUint32(24, sampleRate, true);
+  view.setUint32(24, targetSampleRate, true);
   view.setUint32(28, byteRate, true);
   view.setUint16(32, blockAlign, true);
   view.setUint16(34, bitsPerSample, true);
@@ -495,10 +498,16 @@ function exportTrimmedWav(audioBuffer, trimStartFrac, trimEndFrac) {
   }
 
   let offset = 44;
-  for (let i = startSample; i < endSample; i++) {
+  for (let i = 0; i < numSamples; i++) {
+    // Map output sample index back to original buffer position (linear interpolation)
+    const srcPos = startSample + i * ratio;
+    const srcIndex = Math.floor(srcPos);
+    const frac = srcPos - srcIndex;
     let sample = 0;
     for (let ch = 0; ch < channelData.length; ch++) {
-      sample += channelData[ch][i] || 0;
+      const s0 = channelData[ch][srcIndex] || 0;
+      const s1 = channelData[ch][Math.min(srcIndex + 1, channelData[ch].length - 1)] || 0;
+      sample += s0 + (s1 - s0) * frac; // Linear interpolation
     }
     sample /= channelData.length;
     // Clamp
@@ -684,8 +693,8 @@ async function handleFileSelect(file) {
     }
     state.audioBuffer = audioBuffer;
     state.trimStart = 0;
-    state.trimEnd = Math.min(1, 15 / audioBuffer.duration); // Default: first 15 seconds or full
-    if (audioBuffer.duration <= 15) state.trimEnd = 1;
+    state.trimEnd = Math.min(1, 30 / audioBuffer.duration); // Default: first 30 seconds or full
+    if (audioBuffer.duration <= 30) state.trimEnd = 1;
 
     // Show waveform editor
     const editor = $('#waveformEditor');
