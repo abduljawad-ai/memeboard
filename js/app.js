@@ -125,12 +125,17 @@ function initAuthListener() {
       const name = user.displayName || user.email.split('@')[0];
       if (userAvatar) userAvatar.textContent = name.charAt(0).toUpperCase();
       if (userNameEl) userNameEl.textContent = name;
+      if ($('#userRole')) $('#userRole').textContent = state.isAdmin ? 'Admin' : 'User';
+      const logoutBtn = $('#logoutBtn');
+      if (logoutBtn) logoutBtn.style.display = 'flex';
       if (uploadBtn) { uploadBtn.style.opacity = '1'; uploadBtn.style.pointerEvents = 'auto'; uploadBtn.title = "Upload a new sound"; }
       if ($('#filterFavorites')) $('#filterFavorites').style.display = 'flex';
       if ($('#filterMyUploads')) $('#filterMyUploads').style.display = 'flex';
     } else {
-      if (loginBtn) loginBtn.style.display = 'inline-flex';
+      if (loginBtn) loginBtn.style.display = 'flex';
       if (userProfile) userProfile.style.display = 'none';
+      const logoutBtn = $('#logoutBtn');
+      if (logoutBtn) logoutBtn.style.display = 'none';
       if (uploadBtn) { uploadBtn.style.opacity = '0.5'; uploadBtn.style.pointerEvents = 'none'; uploadBtn.title = "Login to upload"; }
       if ($('#filterFavorites')) $('#filterFavorites').style.display = 'none';
       if ($('#filterMyUploads')) $('#filterMyUploads').style.display = 'none';
@@ -1105,19 +1110,41 @@ window.toggleLike = async function(docId) {
 
 window.setFilter = function(filter) {
   state.currentFilter = filter;
-  document.querySelectorAll('.filter-btn').forEach(btn => {
+  document.querySelectorAll('.nav-btn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.filter === filter);
   });
   renderSounds();
+  closeSidebar();
 };
+
+function openSidebar() {
+  const sidebar = $('#sidebar');
+  const overlay = $('#sidebarOverlay');
+  if (sidebar) sidebar.classList.add('open');
+  if (overlay) overlay.classList.add('show');
+}
+
+function closeSidebar() {
+  const sidebar = $('#sidebar');
+  const overlay = $('#sidebarOverlay');
+  if (sidebar) sidebar.classList.remove('open');
+  if (overlay) overlay.classList.remove('show');
+}
 
 // ============================================
 // BIND EVENTS
 // ============================================
 function bindEvents() {
-  document.querySelectorAll('.filter-btn').forEach(btn => {
+  document.querySelectorAll('.nav-btn').forEach(btn => {
     btn.addEventListener('click', () => window.setFilter(btn.dataset.filter));
   });
+
+  const openMenuBtn = $('#openMenu');
+  const closeMenuBtn = $('#closeMenu');
+  const sidebarOverlay = $('#sidebarOverlay');
+  if (openMenuBtn) openMenuBtn.addEventListener('click', openSidebar);
+  if (closeMenuBtn) closeMenuBtn.addEventListener('click', closeSidebar);
+  if (sidebarOverlay) sidebarOverlay.addEventListener('click', closeSidebar);
 
   const loginBtn = $('#loginBtn'), loginGoogleBtn = $('#loginGoogleBtn'), logoutBtn = $('#logoutBtn');
   if (loginBtn) loginBtn.addEventListener('click', () => { const p = $('#loginPage'); if (p) p.classList.add('show'); });
