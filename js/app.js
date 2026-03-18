@@ -799,6 +799,19 @@ function initRealtimeListener() {
   });
 }
 
+// ============================================
+// LOCAL ORDER (localStorage per-user)
+// ============================================
+function getLocalOrderKey() {
+  return 'memeboard_order' + (state.currentUser ? '_' + state.currentUser.uid : '_anon');
+}
+function loadLocalOrder() {
+  try { return JSON.parse(localStorage.getItem(getLocalOrderKey())) || []; } catch { return []; }
+}
+function saveLocalOrder(ids) {
+  try { localStorage.setItem(getLocalOrderKey(), JSON.stringify(ids)); } catch {}
+}
+
 function renderSounds() {
   const grid = $('#soundGrid'), loadingState = $('#loadingState'), emptyState = $('#emptyState');
   if (!grid) return;
@@ -808,16 +821,21 @@ function renderSounds() {
   grid.style.display = 'grid';
   grid.innerHTML = '';
 
-  // Sort by likes (most liked first), then by date
-  const sorted = [...state.sounds].sort((a, b) => {
-    const aLikes = (a.likes || []).length;
-    const bLikes = (b.likes || []).length;
-    if (bLikes !== aLikes) return bLikes - aLikes;
-    // Secondary sort: newest first
+  // Use saved local order; new sounds go to top, removed sounds are pruned
+  const savedOrder = loadLocalOrder();
+  const soundMap = new Map(state.sounds.map(s => [s.id, s]));
+  const ordered = [];
+  // First: add sounds in saved order (if they still exist)
+  savedOrder.forEach(id => { if (soundMap.has(id)) { ordered.push(soundMap.get(id)); soundMap.delete(id); } });
+  // Then: prepend any new sounds (not in saved order) sorted newest-first
+  const newSounds = [...soundMap.values()].sort((a, b) => {
     const aTime = a.createdAt ? a.createdAt.seconds : 0;
     const bTime = b.createdAt ? b.createdAt.seconds : 0;
     return bTime - aTime;
   });
+  const sorted = [...newSounds, ...ordered];
+  // Persist the merged order
+  saveLocalOrder(sorted.map(s => s.id));
 
   sorted.forEach(sound => {
     const gradient = getGradient(sound.id);
@@ -826,6 +844,7 @@ function renderSounds() {
     const isLiked = state.currentUser && (sound.likes || []).includes(state.currentUser.uid);
     const card = document.createElement('div');
     card.className = 'sound-card'; card.dataset.id = sound.id;
+    card.setAttribute('draggable', 'true');
     card.style.setProperty('--card-color-1', gradient.colors[0]);
     card.style.setProperty('--card-color-2', gradient.colors[1]);
     let visual = `<div class="card-icon" style="background:linear-gradient(135deg,${gradient.colors[0]},${gradient.colors[1]})"><i class="fa-solid fa-play"></i></div>`;
@@ -845,6 +864,153 @@ function renderSounds() {
     card.addEventListener('click', () => playSound(sound.id, sound.audioData));
     grid.appendChild(card);
   });
+
+  // Attach drag-and-drop handlers
+  initGridDragAndDrop(grid);
+}
+
+// ============================================
+// DRAG & DROP REORDERING
+// ============================================
+function initGridDragAndDrop(grid) {
+  let dragCard = null;
+  let dragGhost = null;
+  let longPressTimer = null;
+  let touchDragging = false;
+  let placeholder = null;
+
+  // --- MOUSE DRAG (HTML5 Drag API) ---
+  grid.querySelectorAll('.sound-card').forEach(card => {
+    card.addEventListener('dragstart', (e) => {
+      dragCard = card;
+      card.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', card.dataset.id);
+      // Make drag image semi-transparent
+      setTimeout(() => card.style.opacity = '0.4', 0);
+    });
+
+    card.addEventListener('dragend', () => {
+      card.classList.remove('dragging');
+      card.style.opacity = '';
+      removePlaceholder();
+      dragCard = null;
+      saveGridOrder(grid);
+    });
+
+    // --- TOUCH DRAG (long-press to start) ---
+    card.addEventListener('touchstart', (e) => {
+      if (e.touches.length !== 1) return;
+      const touch = e.touches[0];
+      longPressTimer = setTimeout(() => {
+        e.preventDefault();
+        touchDragging = true;
+        dragCard = card;
+        card.classList.add('dragging');
+
+        // Create floating ghost
+        const rect = card.getBoundingClientRect();
+        dragGhost = card.cloneNode(true);
+        dragGhost.classList.add('drag-ghost');
+        dragGhost.style.width = rect.width + 'px';
+        dragGhost.style.height = rect.height + 'px';
+        dragGhost.style.left = rect.left + 'px';
+        dragGhost.style.top = rect.top + 'px';
+        document.body.appendChild(dragGhost);
+
+        // Vibrate feedback on mobile
+        if (navigator.vibrate) navigator.vibrate(30);
+      }, 400);
+    }, { passive: false });
+
+    card.addEventListener('touchmove', (e) => {
+      if (longPressTimer && !touchDragging) { clearTimeout(longPressTimer); longPressTimer = null; return; }
+      if (!touchDragging || !dragCard) return;
+      e.preventDefault();
+      const touch = e.touches[0];
+
+      // Move ghost
+      if (dragGhost) {
+        dragGhost.style.left = (touch.clientX - dragGhost.offsetWidth / 2) + 'px';
+        dragGhost.style.top = (touch.clientY - dragGhost.offsetHeight / 2) + 'px';
+      }
+
+      // Find card under finger
+      const target = getCardUnderPoint(grid, touch.clientX, touch.clientY);
+      if (target && target !== dragCard) {
+        const targetRect = target.getBoundingClientRect();
+        const midX = targetRect.left + targetRect.width / 2;
+        if (touch.clientX < midX) {
+          grid.insertBefore(dragCard, target);
+        } else {
+          grid.insertBefore(dragCard, target.nextSibling);
+        }
+      }
+    }, { passive: false });
+
+    card.addEventListener('touchend', () => {
+      clearTimeout(longPressTimer);
+      longPressTimer = null;
+      if (touchDragging) {
+        dragCard.classList.remove('dragging');
+        if (dragGhost) { dragGhost.remove(); dragGhost = null; }
+        saveGridOrder(grid);
+        touchDragging = false;
+        dragCard = null;
+      }
+    });
+
+    card.addEventListener('touchcancel', () => {
+      clearTimeout(longPressTimer);
+      longPressTimer = null;
+      if (touchDragging) {
+        dragCard.classList.remove('dragging');
+        if (dragGhost) { dragGhost.remove(); dragGhost = null; }
+        touchDragging = false;
+        dragCard = null;
+      }
+    });
+  });
+
+  // --- MOUSE: dragover on grid for reordering ---
+  grid.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const target = getCardUnderPoint(grid, e.clientX, e.clientY);
+    if (target && target !== dragCard) {
+      const targetRect = target.getBoundingClientRect();
+      const midX = targetRect.left + targetRect.width / 2;
+      if (e.clientX < midX) {
+        grid.insertBefore(dragCard, target);
+      } else {
+        grid.insertBefore(dragCard, target.nextSibling);
+      }
+    }
+  });
+
+  grid.addEventListener('drop', (e) => {
+    e.preventDefault();
+  });
+
+  function removePlaceholder() {
+    if (placeholder) { placeholder.remove(); placeholder = null; }
+  }
+}
+
+function getCardUnderPoint(grid, x, y) {
+  const cards = grid.querySelectorAll('.sound-card:not(.dragging):not(.drag-ghost)');
+  for (const card of cards) {
+    const rect = card.getBoundingClientRect();
+    if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+      return card;
+    }
+  }
+  return null;
+}
+
+function saveGridOrder(grid) {
+  const ids = [...grid.querySelectorAll('.sound-card')].map(c => c.dataset.id);
+  saveLocalOrder(ids);
 }
 
 window.deleteSound = async function(docId) {

@@ -1877,3 +1877,36 @@ input, select, textarea {
   background: rgba(168, 85, 247, 0.3);
   color: white;
 }
+
+/* ---- Drag & Drop Reordering ---- */
+.sound-card.dragging {
+  opacity: 0.35 !important;
+  transform: scale(0.95) !important;
+  border: 2px dashed var(--accent-purple) !important;
+  box-shadow: 0 0 20px rgba(168, 85, 247, 0.3) !important;
+}
+
+.drag-ghost {
+  position: fixed;
+  z-index: 10000;
+  pointer-events: none;
+  opacity: 0.85;
+  transform: scale(1.05) rotate(2deg);
+  border-radius: var(--radius-lg);
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.5),
+    0 0 40px rgba(168, 85, 247, 0.3);
+  border: 2px solid var(--accent-purple);
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  overflow: hidden;
+}
+
+.sound-card[draggable="true"] {
+  cursor: grab;
+}
+
+.sound-card[draggable="true"]:active {
+  cursor: grabbing;
+}
