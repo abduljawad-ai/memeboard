@@ -10,7 +10,8 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import {
   getFirestore, collection, addDoc, onSnapshot, doc, deleteDoc, updateDoc,
-  query, orderBy, serverTimestamp, getDoc, arrayUnion, arrayRemove
+  query, orderBy, serverTimestamp, getDoc, arrayUnion, arrayRemove, setDoc,
+  getDocs, deleteField
 } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
 // ============================================
@@ -176,17 +177,42 @@ function isMediaFile(file) { return isVideoFile(file) || isAudioFile(file); }
 // ============================================
 // AUDIO ENGINE (Playback)
 // ============================================
-function playSound(docId, dataUrl) {
+async function playSound(docId, preloadedData) {
   if (state.activeAudios.has(docId)) {
     const existing = state.activeAudios.get(docId);
     existing.pause(); existing.currentTime = 0; existing.play().catch(() => {});
     pulseCard(docId); return;
   }
+  
+  if (preloadedData) {
+    playDataUrl(docId, preloadedData);
+  } else {
+    setCardPlaying(docId, true);
+    try {
+      showToast('Loading audio...', 'info', 1000);
+      const snap = await getDoc(doc(db, 'audioData', docId));
+      if (snap.exists() && snap.data().audioData) {
+        // Cache it inside the local sounds array to avoid re-fetching
+        const soundObj = state.sounds.find(s => s.id === docId);
+        if (soundObj) soundObj.audioData = snap.data().audioData;
+        playDataUrl(docId, snap.data().audioData);
+      } else {
+        throw new Error('Audio data not found');
+      }
+    } catch (err) {
+      setCardPlaying(docId, false);
+      showToast('Fetch failed: ' + err.message, 'error');
+    }
+  }
+}
+
+function playDataUrl(docId, dataUrl) {
   const audio = new Audio(dataUrl);
   audio.volume = 0.8;
   state.activeAudios.set(docId, audio);
   setCardPlaying(docId, true);
   audio.play().catch((e) => { state.activeAudios.delete(docId); setCardPlaying(docId, false); showToast('Could not play sound', 'error'); });
+  pulseCard(docId);
   audio.addEventListener('ended', () => { state.activeAudios.delete(docId); setCardPlaying(docId, false); }, { once: true });
   audio.addEventListener('error', () => { state.activeAudios.delete(docId); setCardPlaying(docId, false); }, { once: true });
 }
@@ -621,9 +647,10 @@ async function uploadSound() {
       thumbnailBase64 = await resizeImage(state.selectedThumbFile, 400);
     }
     updateProgress(80);
-    const docData = { name, audioData: audioBase64, userId: state.currentUser.uid, createdAt: serverTimestamp() };
+    const docData = { name, userId: state.currentUser.uid, createdAt: serverTimestamp() };
     if (thumbnailBase64) docData.thumbnailData = thumbnailBase64;
-    await addDoc(collection(db, 'sounds'), docData);
+    const docRef = await addDoc(collection(db, 'sounds'), docData);
+    await setDoc(doc(db, 'audioData', docRef.id), { audioData: audioBase64 });
     updateProgress(100);
     showToast(`"${name}" uploaded!`, 'success');
     closeModal();
@@ -1052,7 +1079,11 @@ function saveGridOrder(grid) {
 
 window.deleteSound = async function(docId) {
   if (!confirm('Delete this sound?')) return;
-  try { await deleteDoc(doc(db, 'sounds', docId)); showToast('Deleted', 'success'); }
+  try { 
+    try { await deleteDoc(doc(db, 'audioData', docId)); } catch(e) {}
+    await deleteDoc(doc(db, 'sounds', docId)); 
+    showToast('Deleted', 'success'); 
+  }
   catch (e) { showToast('Delete failed: ' + e.message, 'error'); }
 };
 window.editSound = function(docId) { openEditModal(docId); };
@@ -1166,6 +1197,29 @@ function bindEvents() {
     }
   });
 }
+
+// ============================================
+// DATABASE MIGRATION (TEMPORARY)
+// ============================================
+// Run `await migrateOldSounds();` in DevTools Console to convert old uploads to the new format
+window.migrateOldSounds = async function() {
+  if (!state.isAdmin) {
+    console.error('Only admins can run migration.');
+    return;
+  }
+  const snap = await getDocs(collection(db, 'sounds'));
+  let count = 0;
+  for (const d of snap.docs) {
+    const data = d.data();
+    if (data.audioData) {
+      console.log('Migrating sound:', data.name);
+      await setDoc(doc(db, 'audioData', d.id), { audioData: data.audioData });
+      await updateDoc(doc(db, 'sounds', d.id), { audioData: deleteField() });
+      count++;
+    }
+  }
+  console.log(`Migration complete! Successfully converted ${count} old sounds.`);
+};
 
 // ============================================
 // INIT
